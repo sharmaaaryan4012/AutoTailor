@@ -28,31 +28,42 @@ This conventional approach suffers from two fundamental engineering flaws:
 
 ## Architecture
 
-AutoTailor operates as a modular, deterministic pipeline linking external job boards directly to verified ATS-ready PDF artifacts:
+AutoTailor is architected into three primary tiers: an ingestion and pre-filtering plane, a read-only inference and deterministic patching plane, and a high-performance document rendering and notification plane.
 
-```
-[ GitHub Simplify Repo ]
-           │
-           ▼
-[ SimplifyNewGradAdapter ] ── (Fingerprint Dedup via SHA-256)
-           │
-           ▼
-[ Playwright JD Scraper ]
-           │
-           ▼
-[ Regex Eligibility Gate ] ── (Hard-reject citizenship / clearance)
-           │
-           ▼
-[ Gemini 3.8 Flash (Read-Only) ] ── (Structured JSON: Track, Fit Score, Keywords)
-           │
-           ▼
-[ Deterministic HTML Patching ] ── (Injects into <!-- ID: SKILLS_* --> only)
-           │
-           ▼
-[ Playwright PDF Engine ] ── (A4 Print + pypdf 1-Page Validation)
-           │
-           ▼
-[ Discord Webhook & File Sync ] ── (Mobile/Desktop Alert + PDF Attachment)
+```mermaid
+flowchart TB
+    subgraph IngestionPlane["1. Ingestion & Pre-Filtering Plane"]
+        Simplify["GitHub Simplify Adapter<br/>(Markdown Table Parser · Curated New Grad Listings)"]
+        Dedup["State & Fingerprint Ledger<br/>(SHA-256 Hashes · Zero Duplicate Processing)"]
+        PlaywrightScraper["Playwright DOM Scraper<br/>(Headless Chromium · Dynamic JD Resolution)"]
+        Gate["Regex Work-Auth Gate<br/>(Clearance & Citizenship Hard-Reject · Zero API Quota Waste)"]
+        
+        Simplify --> Dedup
+        Dedup -->|"Unseen Fingerprint"| PlaywrightScraper
+        PlaywrightScraper --> Gate
+    end
+
+    subgraph InferencePlane["2. Read-Only Inference & Deterministic Patching Plane"]
+        Gemini["Gemini 3.8 Flash Inference<br/>(Read-Only Extractor · Structured Pydantic JSON)"]
+        Router["Dual-Track Classifier<br/>(AI Engineering vs. Data Science · Fit Score 0–100)"]
+        Patcher["Deterministic HTML Patch Applier<br/>(Regex Anchor Injection · 0% Bullet Hallucination)"]
+        
+        Gate -->|"Eligible (PASS / REVIEW)"| Gemini
+        Gemini --> Router
+        Router -->|"Fit ≥ Threshold"| Patcher
+    end
+
+    subgraph DeliveryPlane["3. Document Rendering & Notification Plane"]
+        Jinja["Jinja2 Master Template<br/>(A4 Flexbox Layout · 0.4in Margins)"]
+        PlaywrightPDF["Headless Playwright PDF Engine<br/>(Pixel-Perfect CSS Hierarchy)"]
+        Verifier["pypdf Single-Page Verifier<br/>(Strict Invariant: Page Count == 1)"]
+        Delivery["Discord Webhook & Local Sync<br/>(Fit Metadata · Direct Apply Link · Attached PDF)"]
+        
+        Patcher --> Jinja
+        Jinja --> PlaywrightPDF
+        PlaywrightPDF --> Verifier
+        Verifier -->|"Verified 1-Page"| Delivery
+    end
 ```
 
 1. **Scraping Adapter (`src/scraper/adapters.py`)**: Fetches active job listings from curated markdown repositories and leverages Playwright to resolve JavaScript-rendered job descriptions from primary career portals.
@@ -149,3 +160,4 @@ Active development project built for personal recruiting infrastructure. Contrib
 ## License
 
 MIT License
+
