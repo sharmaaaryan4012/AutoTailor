@@ -1,0 +1,24 @@
+# Environments and Secrets
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.py[cod]
+
+# Local State and Logs
+data/watch_state.json
+data/cron.log
+data/pipeline.log
+*.log
+
+# Personal Resumes and Output
+data/base_resumes/
+data/output/
+*.pdf
+*.docx
+
+# OS and Editor
+.DS_Store
+.vscode/
+.idea/
