@@ -33,36 +33,44 @@ AutoTailor is architected into three primary tiers: an ingestion and pre-filteri
 ```mermaid
 flowchart TB
     subgraph IngestionPlane["1. Ingestion & Pre-Filtering Plane"]
-        Simplify["GitHub Simplify Adapter<br/>(Markdown Table Parser · Curated New Grad Listings)"]
-        Dedup["State & Fingerprint Ledger<br/>(SHA-256 Hashes · Zero Duplicate Processing)"]
-        PlaywrightScraper["Playwright DOM Scraper<br/>(Headless Chromium · Dynamic JD Resolution)"]
-        Gate["Regex Work-Auth Gate<br/>(Clearance & Citizenship Hard-Reject · Zero API Quota Waste)"]
-        
-        Simplify --> Dedup
-        Dedup -->|"Unseen Fingerprint"| PlaywrightScraper
-        PlaywrightScraper --> Gate
+        Simplify["Simplify GitHub Feed<br/>(Community Markdown Table · New Grad Stream)"]
+        PlaywrightDOM["Playwright DOM Extractor<br/>(Headless Chromium · Dynamic JD Resolution)"]
+        Dedup["SHA-256 Fingerprint Ledger<br/>• Title, Company, URL hashing<br/>• Persistent watch_state.json<br/>• Instant duplicate drop"]
+        Gate["Regex Work-Auth Gate<br/>• Clearance & citizenship hard-reject<br/>• F-1 / OPT fast-pass bypass<br/>• Zero Gemini API quota waste"]
+
+        Simplify --> PlaywrightDOM
+        PlaywrightDOM --> Dedup
+        PlaywrightDOM --> Gate
     end
 
     subgraph InferencePlane["2. Read-Only Inference & Deterministic Patching Plane"]
-        Gemini["Gemini 3.8 Flash Inference<br/>(Read-Only Extractor · Structured Pydantic JSON)"]
-        Router["Dual-Track Classifier<br/>(AI Engineering vs. Data Science · Fit Score 0–100)"]
-        Patcher["Deterministic HTML Patch Applier<br/>(Regex Anchor Injection · 0% Bullet Hallucination)"]
+        Gemini["Gemini 3.8 Flash Inference Engine<br/>• Structured Pydantic JSON schema<br/>• Read-only keyword extraction (Max 5)<br/>• 0% bullet rewrite / hallucination rate"]
+        
+        TrackAI["AI Engineering Track<br/>• Targets base_ai_engineer.md<br/>• Anchors: SKILLS_AI_ML / SKILLS_SWE<br/>• Prioritizes PyTorch, Triton, vLLM, Ray"]
+        TrackDS["Data Science Track<br/>• Targets base_data_science.md<br/>• Anchors: SKILLS_ML / SKILLS_AI_SYS<br/>• Prioritizes Spark, Polars, Scikit, Kafka"]
+        
+        Patcher["Deterministic HTML Patch Applier<br/>(Deduplicating Regex Engine · Experiences & Bullets 100% Immutable)"]
         
         Gate -->|"Eligible (PASS / REVIEW)"| Gemini
-        Gemini --> Router
-        Router -->|"Fit ≥ Threshold"| Patcher
+        Gemini --> TrackAI
+        Gemini --> TrackDS
+        TrackAI --> Patcher
+        TrackDS --> Patcher
     end
 
     subgraph DeliveryPlane["3. Document Rendering & Notification Plane"]
-        Jinja["Jinja2 Master Template<br/>(A4 Flexbox Layout · 0.4in Margins)"]
-        PlaywrightPDF["Headless Playwright PDF Engine<br/>(Pixel-Perfect CSS Hierarchy)"]
-        Verifier["pypdf Single-Page Verifier<br/>(Strict Invariant: Page Count == 1)"]
-        Delivery["Discord Webhook & Local Sync<br/>(Fit Metadata · Direct Apply Link · Attached PDF)"]
+        PDFPipeline["Playwright PDF Engine & Jinja2 Template<br/>(A4 Flexbox Layout · 0.4in Margins · Headless Chromium Print)"]
+        Verifier["pypdf Single-Page Invariant Verifier<br/>(Strict Invariant: Page Count == 1 · Instant Purge on Overflow)"]
         
-        Patcher --> Jinja
-        Jinja --> PlaywrightPDF
-        PlaywrightPDF --> Verifier
-        Verifier -->|"Verified 1-Page"| Delivery
+        D1["Discord Webhook Alert<br/>(Rich Embed + PDF Attachment)"]
+        D2["Local Filesystem Sync<br/>(Track-Organized Export)"]
+        D3["Audit & State Ledger<br/>(Persistent Logs & Telemetry)"]
+        
+        Patcher --> PDFPipeline
+        PDFPipeline --> Verifier
+        Verifier -->|"Verified 1-Page"| D1
+        Verifier -->|"Verified 1-Page"| D2
+        Verifier -->|"Verified 1-Page"| D3
     end
 ```
 
