@@ -1,79 +1,93 @@
-# Automation Setup (macOS Cron)
+# Automation Setup (macOS launchd)
 
-This guide documents how to schedule the job watcher and resume-tailoring pipeline to run automatically in the background on macOS using `cron`.
+This guide documents how to schedule the AutoTailor job watcher and resume-tailoring pipeline to run automatically in the background on macOS using `launchd`.
+
+Using `launchd` (via `~/Library/LaunchAgents`) is preferred over legacy `cron` on macOS because:
+- **Sleep Catch-Up**: If your Mac is asleep during a scheduled trigger window, `launchd` automatically fires the job as soon as the system wakes up.
+- **Native User Session**: Runs within the user's GUI login session, avoiding permission and environment sandbox restrictions common with `cron`.
 
 ---
 
-## 1. Make the Wrapper Script Executable
+## 1. Wrapper Script
 
-Ensure that [`run.sh`](file:///path/to/recruiting/run.sh) has execute permissions:
+The pipeline is invoked through [`run.sh`](file:///Users/aaryan/Desktop/Projects/autotailor/run.sh):
 
 ```bash
-chmod +x run.sh
+chmod +x /Users/aaryan/recruiting/run.sh
 ```
 
-> [!NOTE]
-> Open [`run.sh`](file:///path/to/recruiting/run.sh) and confirm the `cd /path/to/recruiting` line matches your project's absolute path (e.g., `/Users/aaryan/Desktop/Projects/recruiting`).
-
----
-
-## 2. Edit the Crontab
-
-Open your user `crontab` in your terminal editor:
-
+Contents of `run.sh`:
 ```bash
-crontab -e
+#!/bin/bash
+cd /Users/aaryan/recruiting
+/Users/aaryan/recruiting/.venv/bin/python -m src.main --limit 10 >> /Users/aaryan/recruiting/data/cron.log 2>&1
 ```
 
 ---
 
-## 3. Sample Cron Schedules
+## 2. LaunchAgent Configuration
 
-Add one of the following schedule lines into your crontab editor (replace `/path/to/recruiting` with your absolute repository path):
+The agent definition resides at `~/Library/LaunchAgents/com.aaryan.autotailor.plist`:
 
-### Option A: Run Every 2 Hours
-```cron
-0 */2 * * * /path/to/recruiting/run.sh
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aaryan.autotailor</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/aaryan/recruiting/run.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <array>
+        <!-- Monday -->
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>0</integer></dict>
+        <!-- Tuesday -->
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>0</integer></dict>
+        <!-- Wednesday -->
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>0</integer></dict>
+        <!-- Thursday -->
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>0</integer></dict>
+    </array>
+</dict>
+</plist>
 ```
 
-### Option B: Run Daily at 8:00 AM
-```cron
-0 8 * * * /path/to/recruiting/run.sh
-```
+**Schedule**: 10:00 AM & 10:00 PM, Monday through Thursday.
 
-Save and exit the editor (`:wq` in vim, or `Ctrl + O` then `Ctrl + X` in nano). You should see:
-```text
-crontab: installing new crontab
-```
+---
 
-To verify the installed crontab:
+## 3. Managing the Job
+
+To reload or refresh the agent:
 ```bash
-crontab -l
+launchctl unload ~/Library/LaunchAgents/com.aaryan.autotailor.plist
+launchctl load ~/Library/LaunchAgents/com.aaryan.autotailor.plist
+```
+
+To verify the job is registered:
+```bash
+launchctl list | grep autotailor
+```
+
+To trigger a run immediately without waiting for the timer:
+```bash
+launchctl start com.aaryan.autotailor
 ```
 
 ---
 
-## 4. macOS Permissions & Troubleshooting (Full Disk Access)
+## 4. Monitoring Logs
 
-> [!IMPORTANT]
-> macOS enforces strict **Transparency, Consent, and Control (TCC)** permissions on background daemons. Because `cron` runs detached from your active desktop session, macOS will block it from accessing your `Desktop`, `Documents`, or user folders. This causes `run.sh` to silently fail when writing state or PDF files to disk.
-
-### Grant Full Disk Access to Cron:
-1. Open **System Settings** &rarr; **Privacy & Security**.
-2. Scroll down and click **Full Disk Access**.
-3. Click the **`+`** (Add) button (enter your administrator password or Touch ID if prompted).
-4. In the file picker dialog, press `Command + Shift + G` to bring up the **Go to Folder** prompt.
-5. Paste `/usr/sbin/cron` and press **Enter**.
-6. Select **cron** and click **Open**.
-7. Ensure the toggle switch next to **cron** is turned **ON**.
-
----
-
-## 5. Monitoring Logs
-
-All automated background run output, job evaluations, errors, and delivery statuses are appended to:
+Background execution logs, job evaluations, errors, and delivery statuses are appended to:
 
 ```bash
 tail -f data/cron.log
+tail -f data/pipeline.log
 ```
-
