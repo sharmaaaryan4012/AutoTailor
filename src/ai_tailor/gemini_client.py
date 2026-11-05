@@ -117,7 +117,10 @@ def _get_client() -> genai.Client:
                 "GEMINI_API_KEY is not set. "
                 "Ensure GEMINI_API_KEY is defined in your .env file."
             )
-        _client = genai.Client(api_key=api_key)
+        _client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=30000),  # 30 second request timeout
+        )
     return _client
 
 
@@ -137,7 +140,11 @@ def _call_with_retry(fn, *args, **kwargs):
             exc_str = str(exc).lower()
             is_retryable = any(
                 signal in exc_str
-                for signal in ("429", "500", "503", "rate limit", "quota", "resource exhausted", "unavailable")
+                for signal in (
+                    "429", "500", "503", "rate limit", "quota",
+                    "resource exhausted", "unavailable", "timeout",
+                    "timed out", "network", "connection reset"
+                )
             )
             if not is_retryable or attempt == _MAX_RETRIES:
                 logger.error("Gemini call failed (attempt %d/%d): %s", attempt, _MAX_RETRIES, exc)

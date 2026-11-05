@@ -29,6 +29,7 @@ import logging
 import os
 import re
 import shutil
+import socket
 import sys
 import time
 from datetime import datetime, timezone
@@ -37,6 +38,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Global default socket timeout to prevent indefinite network hangs during sleep/network transitions
+socket.setdefaulttimeout(45.0)
 
 # ── Logging setup (must happen before any module imports that log at import-time)
 logging.basicConfig(
