@@ -15,6 +15,7 @@ data/pipeline.log
 # Personal Resumes and Output
 data/base_resumes/
 data/output/
+manual_input.txt
 *.pdf
 *.docx
 

@@ -144,7 +144,7 @@ Place your base HTML resumes in `data/base_resumes/base_data_science.md` and `da
 
 ### Run
 
-Run the pipeline synchronously:
+Run the automated pipeline synchronously:
 
 ```bash
 python3 -m src.main --limit 10
@@ -155,6 +155,23 @@ Verify pipeline behavior without consuming Gemini API tokens or rendering PDFs:
 ```bash
 python3 -m src.main --dry-run --limit 5
 ```
+
+### On-Demand Manual Tailoring
+
+To tailor a resume for any specific job you find on the internet:
+
+1. Open `manual_input.txt` and paste the raw job description (with optional headers for custom keywords or company name).
+2. Run the wrapper script:
+
+```bash
+./manual.sh
+```
+
+AutoTailor will automatically:
+- Infer the Company Name and Role Title via Gemini (if omitted in headers).
+- Extract technical keywords matching your resume track.
+- Deterministically inject skills and compile a validated 1-page A4 PDF.
+- Dispatch the rich embed and PDF file straight to your Discord server.
 
 ## Limitations and Future Work
 

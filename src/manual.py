@@ -7,14 +7,19 @@ Allows tailoring a resume directly for a specific job without running the
 full automated scraper loop.
 
 Supports:
-  1. Direct keyword injection (e.g., --keywords "PyTorch, CUDA, Triton, TensorRT")
-  2. Full JD extraction via Gemini (e.g., --jd "..." or --jd-file path/to/jd.txt)
-  3. Combined mode: Provide both JD and extra custom keywords
-  4. Track override (--track AI_ENGINEERING or DATA_SCIENCE)
-  5. Deterministic Playwright PDF rendering (strict 1-page check)
-  6. Discord webhook delivery with rich embed & PDF attachment
+  1. Reading from an input file (e.g. manual_input.txt or --from-file)
+  2. Automatic extraction of Company & Title from raw JD text via Gemini
+  3. Direct keyword injection (e.g., --keywords "PyTorch, CUDA, Triton, TensorRT")
+  4. Full JD extraction via Gemini (e.g., --jd "..." or --jd-file path/to/jd.txt)
+  5. Combined mode: Provide both JD and extra custom keywords
+  6. Track override (--track AI_ENGINEERING or DATA_SCIENCE)
+  7. Deterministic Playwright PDF rendering (strict 1-page check)
+  8. Discord webhook delivery with rich embed & PDF attachment
 
 Examples:
+  # Simplest: Just paste JD into manual_input.txt and run:
+  ./manual.sh
+
   # Quick keyword injection for AI Engineering:
   python -m src.manual -c "Anthropic" -t "Research Engineer" -k "PyTorch, Triton, vLLM, CUDA, Ray" --track ai
 
@@ -22,12 +27,13 @@ Examples:
   python -m src.manual -c "DeepMind" -t "Research Scientist" --jd "We seek experience in JAX, Haiku, reinforcement learning..."
 
   # Read JD from a text file:
-  python -m src.manual -c "Meta" -t "AI Systems Engineer" --jd-file /path/to/jd.txt
+  python -m src.manual --from-file manual_input.txt
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import re
@@ -80,6 +86,137 @@ def _safe_filename(company: str, title: str) -> str:
     return f"{safe[:80]}_{date_str}"
 
 
+def infer_company_and_title(jd_text: str) -> tuple[str, str]:
+    """Use Gemini to quickly infer the company name and job title from raw JD text."""
+    try:
+        from google import genai
+        from google.genai import types
+        from pydantic import BaseModel
+
+        class JobMeta(BaseModel):
+            company: str
+            title: str
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return "Company", "Job Role"
+
+        client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=20000),
+        )
+        resp = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=jd_text[:4000],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=JobMeta.model_json_schema(),
+                system_instruction=(
+                    "Extract the exact company name and job title from the job posting text. "
+                    "Return ONLY valid JSON with keys 'company' and 'title'."
+                ),
+                temperature=0.1,
+            ),
+        )
+        res = json.loads(resp.text)
+        comp = res.get("company", "").strip() or "Company"
+        title = res.get("title", "").strip() or "Job Role"
+        logger.info("Inferred from JD: Company='%s', Title='%s'", comp, title)
+        return comp, title
+    except Exception as exc:
+        logger.warning("Could not infer company/title via Gemini: %s. Using default names.", exc)
+        return "Company", "Job Role"
+
+
+def parse_input_file(path: Path) -> dict:
+    """
+    Parse an input text file containing either:
+      1. A header block (Company:, Role:, Keywords:, Track:, URL:) followed by --- and the JD
+      2. Or raw job description text pasted directly from the web.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"Input file not found: {path.resolve()}")
+
+    raw_text = path.read_text(encoding="utf-8").strip()
+    if not raw_text:
+        raise ValueError(
+            f"Input file '{path.name}' is empty. Please paste a job description into it."
+        )
+
+    data = {
+        "company": None,
+        "title": None,
+        "keywords": [],
+        "track": None,
+        "url": None,
+        "location": "Remote / Flexible",
+        "jd_text": "",
+    }
+
+    # Split on markdown divider if present
+    parts = re.split(r"^---+\s*$", raw_text, maxsplit=1, flags=re.MULTILINE)
+    if len(parts) == 2:
+        header_text = parts[0]
+        body_text = parts[1].strip()
+    else:
+        # Check if first lines look like headers
+        header_lines = []
+        body_lines = []
+        in_header = True
+        for line in raw_text.splitlines():
+            clean = line.strip()
+            if in_header and (clean.startswith("#") or not clean):
+                continue
+            if in_header and re.match(r"^(company|role|title|keywords|skills|track|url|link|location)\s*:", clean, re.IGNORECASE):
+                header_lines.append(clean)
+            else:
+                in_header = False
+                body_lines.append(line)
+        header_text = "\n".join(header_lines)
+        body_text = "\n".join(body_lines).strip()
+        if not body_text:
+            body_text = raw_text
+
+    # Parse headers if present
+    for line in header_text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.match(
+            r"^(company|role|title|position|keywords|skills|track|url|link|location)\s*:\s*(.*)$",
+            line,
+            re.IGNORECASE,
+        )
+        if m:
+            key = m.group(1).lower()
+            val = m.group(2).strip()
+            if not val:
+                continue
+            if key == "company":
+                data["company"] = val
+            elif key in ("role", "title", "position"):
+                data["title"] = val
+            elif key in ("keywords", "skills"):
+                data["keywords"] = [k.strip() for k in val.split(",") if k.strip()]
+            elif key == "track":
+                data["track"] = val
+            elif key in ("url", "link"):
+                data["url"] = val
+            elif key == "location":
+                data["location"] = val
+
+    data["jd_text"] = body_text or raw_text
+
+    # If company or title still missing, use Gemini to automatically infer from the JD text
+    if not data["company"] or not data["title"]:
+        logger.info("Company/Title not specified in headers; analyzing JD text with Gemini...")
+        inferred_comp, inferred_title = infer_company_and_title(data["jd_text"])
+        data["company"] = data["company"] or inferred_comp
+        data["title"] = data["title"] or inferred_title
+
+    return data
+
+
 def tailor_manual(
     company: str,
     title: str,
@@ -93,33 +230,6 @@ def tailor_manual(
 ) -> Path:
     """
     Manually tailor and render a 1-page ATS resume, with optional Discord delivery.
-
-    Parameters
-    ----------
-    company : str
-        Company name.
-    title : str
-        Role title.
-    jd_text : str, optional
-        Job description text. If provided and track is not specified, Gemini
-        will classify the role and extract keywords.
-    keywords : list of str, optional
-        Explicit technical keywords to inject.
-    track : str, optional
-        "AI_ENGINEERING" or "DATA_SCIENCE" (or shorthands "ai", "ds").
-    apply_url : str, optional
-        Link to the job posting.
-    location : str, optional
-        Role location for Discord embed.
-    deliver_discord : bool, default True
-        Whether to send the PDF and embed to Discord.
-    output_path : str, optional
-        Custom path for rendered PDF. Defaults to data/output/<Company>_<Title>_<Date>.pdf.
-
-    Returns
-    -------
-    Path
-        Path to the rendered PDF.
     """
     logger.info("============================================================")
     logger.info("Manual Tailoring: %s — %s", company, title)
@@ -218,13 +328,17 @@ def _parse_args() -> argparse.Namespace:
         description="AutoTailor Manual: On-demand resume tailoring & delivery"
     )
     parser.add_argument(
+        "--from-file",
+        nargs="?",
+        const="manual_input.txt",
+        help="Path to file containing JD and optional headers (default: manual_input.txt)",
+    )
+    parser.add_argument(
         "-c", "--company",
-        required=True,
         help="Company name (e.g. 'Apple', 'Meta', 'OpenAI')",
     )
     parser.add_argument(
         "-t", "--title",
-        required=True,
         help="Job role title (e.g. 'AI Engineer', 'Research Scientist')",
     )
     parser.add_argument(
@@ -269,24 +383,59 @@ def _parse_args() -> argparse.Namespace:
 def main():
     args = _parse_args()
 
-    jd_text = args.jd
-    if args.jd_file:
-        if not args.jd_file.exists():
-            print(f"Error: JD file not found: {args.jd_file}", file=sys.stderr)
+    # Mode 1: --from-file (or default manual_input.txt if no flags supplied)
+    if args.from_file or (not args.company and not args.title and not args.jd and not args.jd_file):
+        file_path = Path(args.from_file or "manual_input.txt")
+        if not file_path.exists():
+            print(
+                f"[AutoTailor] Error: Input file '{file_path}' not found.\n"
+                f"Please paste the job description into '{file_path}' and run ./manual.sh again.",
+                file=sys.stderr,
+            )
             sys.exit(1)
-        jd_text = args.jd_file.read_text(encoding="utf-8")
 
-    keyword_list = [k.strip() for k in args.keywords.split(",")] if args.keywords else None
+        parsed = parse_input_file(file_path)
+
+        # Allow CLI flags to override file headers
+        company = args.company or parsed["company"]
+        title = args.title or parsed["title"]
+        track = args.track or parsed["track"]
+        url = args.url or parsed["url"]
+        location = args.location if args.location != "Remote / Flexible" else parsed["location"]
+        jd_text = parsed["jd_text"]
+
+        # Merge keywords
+        cli_kws = [k.strip() for k in args.keywords.split(",")] if args.keywords else []
+        combined_kws = list(dict.fromkeys(cli_kws + parsed["keywords"]))
+
+    else:
+        # Mode 2: Explicit command line flags
+        if not args.company or not args.title:
+            print("Error: Either provide --from-file OR both -c/--company and -t/--title", file=sys.stderr)
+            sys.exit(1)
+
+        company = args.company
+        title = args.title
+        track = args.track
+        url = args.url
+        location = args.location
+        combined_kws = [k.strip() for k in args.keywords.split(",")] if args.keywords else None
+        jd_text = args.jd
+        if args.jd_file:
+            if not args.jd_file.exists():
+                print(f"Error: JD file not found: {args.jd_file}", file=sys.stderr)
+                sys.exit(1)
+            jd_text = args.jd_file.read_text(encoding="utf-8")
 
     try:
         pdf_path = tailor_manual(
-            company=args.company,
-            title=args.title,
+            company=company,
+            title=title,
             jd_text=jd_text,
-            keywords=keyword_list,
-            track=args.track,
-            apply_url=args.url,
-            location=args.location,
+            keywords=combined_kws,
+            track=track,
+            apply_url=url,
+            location=location,
             deliver_discord=not args.no_discord,
             output_path=args.output,
         )
