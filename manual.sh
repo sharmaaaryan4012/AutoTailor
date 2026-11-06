@@ -33,3 +33,4 @@ fi
 
 echo "[AutoTailor] Processing manual job from '$INPUT_FILE'..."
 /Users/aaryan/recruiting/.venv/bin/python -m src.manual --from-file "$INPUT_FILE"
+
