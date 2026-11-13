@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<style>
+    @page { margin: 0.4in; size: A4; }
+    body { 
+        font-family: 'Times New Roman', Times, serif; 
+        font-size: 10.5pt; 
+        line-height: 1.2; 
+        color: black; 
+    }
+    .header { text-align: center; margin-bottom: 6px; }
+    .header h1 { margin: 0; font-size: 24pt; font-weight: normal; }
+    .header p { margin: 2px 0 0 0; font-size: 10.5pt; }
+    .header a { color: black; text-decoration: none; }
+    h2 { 
+        border-bottom: 1px solid black; 
+        text-transform: uppercase; 
+        font-size: 12pt; 
+        margin-top: 7px; 
+        margin-bottom: 3px; 
+        padding-bottom: 2px; 
+        font-weight: bold; 
+    }
+    .row { display: flex; justify-content: space-between; align-items: baseline; }
+    .bold { font-weight: bold; }
+    .skills-row { display: flex; margin-bottom: 2px; }
+    .skills-category { width: 170px; font-weight: bold; flex-shrink: 0; }
+    ul { margin-top: 2px; margin-bottom: 5px; padding-left: 16px; }
+    li { margin-bottom: 1.5px; text-align: justify; }
+</style>
+</head>
+<body>
+{% if content %}
+    {{ content }}
+{% else %}
+<div class="header">
+  <h1>{{ candidate_name | default("John Doe") }}</h1>
+  <p>{{ phone | default("+1 (555) 019-2834") }} &bull; <a href="mailto:{{ email | default('john.doe@university.edu') }}">{{ email | default('john.doe@university.edu') }}</a> &bull; <a href="https://{{ website | default('johndoe.dev') }}">{{ website | default('johndoe.dev') }}</a> &bull; <a href="https://{{ linkedin_url | default('linkedin.com/in/johndoe') }}">LinkedIn @ {{ linkedin_url | default('linkedin.com/in/johndoe') }}</a></p>
+</div>
+
+<h2>Education</h2>
+<div class="row bold"><span>{{ university_1 | default("Top Tier University, School of Management") }}</span><span>{{ grad_date_1 | default("June 2027") }}</span></div>
+<div class="row"><span>{{ degree_1 | default("Master of Science in Management") }}</span><span></span></div>
+<ul>
+  <li><!-- ID: EDU_01 --> <strong>Incubator:</strong> Pursuing commercialization of {{ project_2 | default("Distributed Systems Platform") }}</li>
+</ul>
+<div class="row bold"><span>{{ university_2 | default("Premier University, College of Engineering") }}</span><span>{{ grad_date_2 | default("May 2026") }}</span></div>
+<div class="row"><span>{{ degree_2 | default("Bachelor of Science in Mathematics & Computer Science") }}</span><span>{{ gpa_2 | default("GPA: 3.80/4.00") }}</span></div>
+<ul>
+  <li><!-- ID: EDU_02 --> <strong>Fellowship:</strong> Selected for premier academic-corporate fellowship</li>
+  <li><!-- ID: EDU_03 --> <strong>Research:</strong> Presented machine learning research to 100+ domain experts</li>
+</ul>
+
+<h2>Skills</h2>
+<div class="skills-row"><div class="skills-category">Languages:</div><div><!-- ID: SKILLS_LANG --> Python, C++, Java, JavaScript, SQL, R</div></div>
+<div class="skills-row"><div class="skills-category">Software Engineering:</div><div><!-- ID: SKILLS_SWE --> FastAPI, REST APIs, Docker, Git, CI/CD, PostgreSQL</div></div>
+<div class="skills-row"><div class="skills-category">AI & Machine Learning:</div><div><!-- ID: SKILLS_AI_ML --> PyTorch, TensorFlow, scikit-learn, XGBoost, LangChain</div></div>
+
+<h2>Experience</h2>
+<div class="row bold"><span>Enterprise Technology Inc.</span><span>San Francisco, CA</span></div>
+<div class="row"><span>Machine Learning Intern</span><span>Jun 2025 &ndash; Aug 2025</span></div>
+<ul>
+  <li>Developed neural network models improving production inference accuracy by 15%</li>
+  <li>Engineered automated data preprocessing pipelines handling 100K+ daily records</li>
+</ul>
+
+<h2>Projects</h2>
+<div class="row bold"><span>{{ project_1 | default("Open Data Platform") }} | Developer</span><span>Sep 2025 &ndash; Present</span></div>
+<ul>
+  <li>Architected multi-service compute-to-data platform using FastAPI, PyTorch, and Docker</li>
+</ul>
+<div class="row bold"><span>{{ project_2 | default("Disruption Recovery Engine") }} | Developer</span><span>Jan 2025 &ndash; May 2025</span></div>
+<ul>
+  <li>Built simulation engine optimizing operational constraints and recovery resolution times</li>
+</ul>
+{% endif %}
+</body>
+</html>

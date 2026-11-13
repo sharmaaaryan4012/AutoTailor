@@ -1,0 +1,17 @@
+# ==============================================================================
+# AutoTailor Manual Input
+#
+# Instructions:
+# 1. (Optional) You can fill in the headers below, or leave them blank.
+#    If blank, Gemini will automatically detect the Company and Role Title!
+# 2. Paste the full job description below the separator line (---).
+# 3. Save this file and run: ./manual.sh
+# ==============================================================================
+Company: 
+Role: 
+Keywords: 
+Track: 
+URL: 
+---
+[Paste job description from the internet here]
+

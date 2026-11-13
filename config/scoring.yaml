@@ -1,0 +1,31 @@
+# Scoring and Fit Evaluation Configuration
+# ----------------------------------------
+
+# Thresholds
+thresholds:
+  min_fit_score: 55
+  high_priority_fit_score: 80
+
+# Positive Boosts
+boosts:
+  priority_titles:
+    score: +25
+    matches:
+      - "Machine Learning"
+      - "AI Engineer"
+      - "Research Scientist"
+      - "Data Scientist"
+
+# Penalties
+penalties:
+  generic_data_title_without_engineering_or_science:
+    score: -50
+    condition: "Title contains 'Data and Analytics' or 'Analytics' without 'Engineer' or 'Scientist' attached"
+    matches:
+      - "Data and Analytics"
+      - "Data & Analytics"
+      - "Data Analytics"
+
+  non_technical_role:
+    score: -100
+    condition: "Role matches NON_TECH_TITLES (advisor, analyst, rotational, development program, etc.)"

@@ -1,0 +1,10 @@
+playwright
+google-genai
+pydantic
+jinja2
+pypdf
+pyyaml
+python-dotenv
+requests
+
+markdown

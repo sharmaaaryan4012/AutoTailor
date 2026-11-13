@@ -1,0 +1,28 @@
+# =============================================================================
+# Candidate Profile Configuration Example
+# =============================================================================
+# Copy this file to `config/candidate_profile.yaml` and customize it with your
+# personal details.
+#
+# NOTE: `config/candidate_profile.yaml` is ignored by git to ensure your personal
+# data (name, email, phone, GPA, universities) is never leaked or tracked publicly.
+# =============================================================================
+
+candidate_name: "John Doe"
+email: "john.doe@university.edu"
+phone: "+1 (555) 019-2834"
+website: "johndoe.dev"
+linkedin_url: "linkedin.com/in/johndoe"
+github_url: "github.com/johndoe"
+
+university_1: "Top Tier University, School of Management"
+degree_1: "Master of Science in Management"
+grad_date_1: "June 2027"
+
+university_2: "Premier University, College of Engineering"
+degree_2: "Bachelor of Science in Mathematics & Computer Science"
+grad_date_2: "May 2026"
+gpa_2: "GPA: 3.80/4.00"
+
+project_1: "The Open Universal Data Marketplace"
+project_2: "SkyRipple"

@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ai_patch_schema",
+  "title": "ResumePatch",
+  "description": "The structured output schema Gemini must conform to when generating resume patches. Used as the response_schema in the google-genai SDK call. The Pydantic model in gemini_client.py mirrors this schema exactly.",
+  "type": "object",
+  "required": ["track", "patches", "skills_addendum", "confidence_score"],
+  "additionalProperties": false,
+  "properties": {
+    "track": {
+      "type": "string",
+      "enum": ["ai_engineering", "data_science", "irrelevant"],
+      "description": "Which resume track this patch targets, or 'irrelevant' if the role is out of scope."
+    },
+    "patches": {
+      "type": "array",
+      "description": "List of surgical bullet-point replacements. Max 5 patches per resume.",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["section", "job_id", "bullet_index", "new_text"],
+        "additionalProperties": false,
+        "properties": {
+          "section": {
+            "type": "string",
+            "enum": ["experience", "projects"],
+            "description": "Which resume section contains the bullet to patch."
+          },
+          "job_id": {
+            "type": "string",
+            "description": "The identifier of the job or project entry in the base resume (e.g., 'job_1', 'proj_2'). Must match an existing id in the base resume."
+          },
+          "bullet_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero-based index of the bullet point within the job/project entry to replace."
+          },
+          "new_text": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 160,
+            "description": "The replacement bullet text. Must start with a strong action verb. Must be a single sentence. Must not fabricate metrics or dates not present in the original bullet."
+          },
+          "original_text": {
+            "type": "string",
+            "description": "The original bullet text being replaced. Included for audit logging."
+          }
+        }
+      }
+    },
+    "skills_addendum": {
+      "type": "array",
+      "description": "Additional skills/tools from the JD to append to the Skills section. Max 6 items. Must be technologies/tools mentioned in the JD that the candidate plausibly has experience with.",
+      "maxItems": 6,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      }
+    },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Gemini's confidence that this role is a good fit for the candidate (0.0 = poor fit, 1.0 = excellent fit). Used for Discord embed display and filtering."
+    },
+    "reasoning": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Brief explanation of patch decisions and confidence score. For audit logging only; not rendered in the PDF."
+    },
+    "jd_keywords_matched": {
+      "type": "array",
+      "description": "Key technical terms from the JD that influenced the patch. For audit logging.",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
+

@@ -1,0 +1,209 @@
+# Job Search Configuration
+# -------------------------
+# Controls scraper behavior, keyword targeting, and hard-reject patterns.
+# Edit this file to update search parameters without touching code.
+
+# --- Search Queries ---
+tracks:
+  ai_engineering:
+    keywords:
+      - "Machine Learning"
+      - "AI Engineer"
+      - "ML Engineer"
+      - "Machine Learning Engineer"
+      - "LLM Engineer"
+      - "Applied AI Engineer"
+      - "Inference Engineer"
+      - "MLOps Engineer"
+      - "Generative AI Engineer"
+    exclude_keywords:
+      - "Staff"
+      - "Principal"
+      - "Director"
+      - "VP"
+      - "Senior Staff"
+      - "Advisor"
+      - "Analyst"
+      - "Rotational"
+      - "Development Program"
+      - "Early Career Program"
+      - "Consultant"
+      - "Business Intelligence"
+
+  data_science:
+    keywords:
+      - "Data Scientist"
+      - "Research Scientist"
+      - "Applied Scientist"
+      - "Quantitative Analyst"
+      - "ML Scientist"
+      - "Quantitative Researcher"
+    exclude_keywords:
+      - "Staff"
+      - "Principal"
+      - "Director"
+      - "VP"
+      - "Advisor"
+      - "Analyst"
+      - "Rotational"
+      - "Development Program"
+      - "Early Career Program"
+      - "Consultant"
+      - "Business Intelligence"
+      - "BI "
+
+# --- Experience Level Filters ---
+experience:
+  # Hard reject if JD mentions more than this many required years
+  max_years_required: 2
+  # Accept these level labels
+  accepted_levels:
+    - "Entry Level"
+    - "New Grad"
+    - "New Graduate"
+    - "Associate"
+    - "Junior"
+    - "L3"
+    - "L4"
+    - "IC2"
+    - "IC3"
+  # Class years to accept
+  accepted_graduation_years:
+    - 2025
+    - 2026
+    - 2027
+
+# --- Location Tiers ---
+locations:
+  # Tier 1: Strongly preferred (most AI/DS density)
+  tier_1:
+    - "San Francisco, CA"
+    - "San Jose, CA"
+    - "Seattle, WA"
+    - "New York, NY"
+    - "Menlo Park, CA"
+    - "Mountain View, CA"
+    - "Sunnyvale, CA"
+    - "Palo Alto, CA"
+    - "Redmond, WA"
+
+  # Tier 2: Acceptable
+  tier_2:
+    - "Austin, TX"
+    - "Boston, MA"
+    - "Chicago, IL"
+    - "Los Angeles, CA"
+    - "San Diego, CA"
+    - "Atlanta, GA"
+    - "Denver, CO"
+    - "Pittsburgh, PA"
+    - "Cambridge, MA"
+
+  # Always accept remote
+  accept_remote: true
+
+  # Always reject (LCOL with poor AI job markets for new grads)
+  reject_locations: []
+
+# --- Per-Board Settings ---
+boards:
+  linkedin:
+    enabled: true
+    max_listings_per_run: 25
+    delay_between_requests_s: [3, 7]  # random range in seconds
+
+  greenhouse:
+    enabled: true
+    max_listings_per_run: 15
+    delay_between_requests_s: [2, 5]
+
+  lever:
+    enabled: true
+    max_listings_per_run: 15
+    delay_between_requests_s: [2, 5]
+
+  handshake:
+    enabled: true
+    max_listings_per_run: 20
+    delay_between_requests_s: [3, 6]
+
+# --- Excluded Companies ---
+# Companies to skip unconditionally before Playwright scraping or Gemini inference.
+excluded_companies:
+  - "tiktok"
+
+# --- Multi-Source Job Feeds ---
+# Used by src/scraper/adapters.py (`fetch_all_sources`).
+sources:
+  simplify:
+    enabled: true
+    max_age_days: 14
+
+  speedyapply_ai:
+    enabled: true
+    max_age_days: 14
+
+  zapply_ds:
+    enabled: true
+    max_age_days: 14
+    exclude_internships: true
+
+  smartrecruiters:
+    enabled: true
+    max_age_days: 14
+    countries:
+      - "us"
+    exclude_internships: true
+    queries:
+      - '"Machine Learning"'
+      - '"AI Engineer"'
+      - '"Data Scientist"'
+      - '"Research Scientist"'
+      - '"New Grad"'
+      - '"Graduate" Data'
+
+# --- Global Run Limits ---
+limits:
+  max_total_listings_per_run: 50
+  max_gemini_calls_per_run: 40  # leave headroom below free tier daily limit
+
+# --- Hard-Reject Patterns (Regex, case-insensitive) ---
+# These are applied BEFORE any Gemini API call.
+# A listing matching ANY of these patterns is immediately rejected.
+# See: docs/decisions.md ADR-004
+hard_reject_patterns:
+  visa_citizenship:
+    - "must be (a )?us citizen"
+    - "u\\.s\\. citizenship required"
+    - "united states citizenship required"
+    - "requires? (active )?us citizenship"
+    - "only (us|u\\.s\\.) citizens?"
+    - "citizen of the united states"
+    - "must hold (a )?us (security )?clearance"
+    - "green card holders? only"
+    - "must have (permanent|unrestricted) work authorization"
+    - "must be (legally )?authorized .{0,30} without (visa )?sponsorship"
+
+  no_sponsorship:
+    - "no (visa )?sponsorship"
+    - "sponsorship (is )?not (available|provided|offered|considered)"
+    - "we do not (offer|provide|support) (visa )?sponsorship"
+    - "cannot sponsor"
+    - "unable to sponsor"
+    - "does not sponsor"
+
+  clearance:
+    - "(active|current) (secret|top secret|ts/sci|ts\\|sci) clearance"
+    - "security clearance (required|needed|mandatory|preferred)"
+    - "must (hold|have|maintain) (a )?(security )?clearance"
+    - "dod clearance"
+    - "polygraph required"
+
+# --- Soft-Flag Patterns (logged but not rejected) ---
+# Gemini makes the final call on soft-flagged listings.
+soft_flag_patterns:
+  - "3\\+? years? (of )?experience"
+  - "three or more years"
+  - "immediate (start|availability)"
+  - "currently available"
+

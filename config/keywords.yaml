@@ -1,0 +1,58 @@
+# Target Technical Keywords & Role Priority
+# ------------------------------------------
+
+# Priority Core Roles (Boosted)
+priority_roles:
+  - "Machine Learning"
+  - "AI Engineer"
+  - "Research Scientist"
+  - "Data Scientist"
+
+# Target Technical Domains
+domain_keywords:
+  ai_engineering:
+    - "PyTorch"
+    - "TensorFlow"
+    - "JAX"
+    - "CUDA"
+    - "Triton"
+    - "TensorRT"
+    - "vLLM"
+    - "Ray"
+    - "DeepSpeed"
+    - "MLOps"
+    - "Kubernetes"
+    - "Docker"
+    - "Model Serving"
+    - "Distributed Training"
+    - "Inference Optimization"
+
+  data_science:
+    - "Statistical Modeling"
+    - "Machine Learning"
+    - "A/B Testing"
+    - "Causal Inference"
+    - "Predictive Analytics"
+    - "Python"
+    - "R"
+    - "SQL"
+    - "Spark"
+    - "Polars"
+    - "Scikit-Learn"
+    - "Quantitative Modeling"
+
+# Excluded / Blacklisted Role Patterns
+excluded_titles:
+  - "advisor"
+  - "analyst"
+  - "rotational"
+  - "development program"
+  - "early career program"
+  - "consultant"
+  - "business intelligence"
+  - "bi "
+  - "marketing"
+  - "sales"
+  - "operations"
+  - "clerk"
+  - "admin"
