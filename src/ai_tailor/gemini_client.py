@@ -40,7 +40,8 @@ _RETRY_BASE_DELAY = 1.0  # seconds
 
 class ResumePatch(BaseModel):
     """
-    Read-only output schema from Gemini for job classification and keyword extraction.
+    Read-only output schema from Gemini for job classification, keyword extraction,
+    and modular project selection.
     No bullet point rewrites are performed.
     """
 
@@ -70,6 +71,10 @@ class ResumePatch(BaseModel):
             "unless the role is explicitly Systems/HPC."
         ),
     )
+    selected_projects: list[Literal["DEX", "PLANSIGHT", "SKYRIPPLE", "TOUDM", "NETRESCUE", "PACKETLENS"]] = Field(
+        ...,
+        description="Exactly 2 or 3 projects that best fit the job description.",
+    )
 
     @field_validator("extracted_keywords")
     @classmethod
@@ -78,6 +83,26 @@ class ResumePatch(BaseModel):
         cleaned = [item.strip() for item in v if item and item.strip()]
         return cleaned[:5]
 
+    @field_validator("selected_projects")
+    @classmethod
+    def validate_projects(cls, v: list[str]) -> list[str]:
+        seen = set()
+        deduped = []
+        for p in v:
+            if p not in seen:
+                seen.add(p)
+                deduped.append(p)
+        if len(deduped) > 3:
+            return deduped[:3]
+        if len(deduped) < 2:
+            defaults = ["TOUDM", "SKYRIPPLE", "PLANSIGHT"]
+            for d in defaults:
+                if d not in deduped:
+                    deduped.append(d)
+                if len(deduped) == 2:
+                    break
+        return deduped
+
 
 # ---------------------------------------------------------------------------
 # System Prompt (Classification & Keyword Extraction ONLY)
@@ -85,7 +110,7 @@ class ResumePatch(BaseModel):
 
 _SYSTEM_PROMPT = """\
 You are an expert technical recruiter and resume analyst.
-Your job is to read the provided Job Description (JD) and perform ONLY two tasks:
+Your job is to read the provided Job Description (JD) and perform ONLY three tasks:
 
 1. Classification & Scoring:
    - Categorize the role as AI_ENGINEERING, DATA_SCIENCE, or IRRELEVANT.
@@ -101,6 +126,13 @@ Your job is to read the provided Job Description (JD) and perform ONLY two tasks
    - Identify up to 5 key technical skills, libraries, frameworks, or tools explicitly required in the JD matching these criteria.
    - Do NOT rewrite or modify any resume bullets.
    - Do NOT hallucinate credentials or skills outside technical software/data domain.
+
+3. Project Selection:
+   - Based on the Job Description, select EXACTLY 2 or 3 projects from the available list that demonstrate the most relevant skills.
+   - For systems/infrastructure roles, prefer NETRESCUE, PACKETLENS, or TOUDM.
+   - For modeling/AI roles, prefer PLANSIGHT, SKYRIPPLE, or DEX.
+   - You must output exactly 2 or 3 project IDs.
+   - Available projects: DEX, PLANSIGHT, SKYRIPPLE, TOUDM, NETRESCUE, PACKETLENS.
 
 Return ONLY valid JSON matching the requested schema.
 """
@@ -209,7 +241,7 @@ def generate_patch(job_description: str) -> ResumePatch:
         ) from exc
 
     logger.info(
-        "Classification complete — track=%s fit=%d keywords=%s",
-        patch.track, patch.fit_score, patch.extracted_keywords,
+        "Classification complete — track=%s fit=%d keywords=%s projects=%s",
+        patch.track, patch.fit_score, patch.extracted_keywords, patch.selected_projects,
     )
     return patch

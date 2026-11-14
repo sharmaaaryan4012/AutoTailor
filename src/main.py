@@ -77,18 +77,15 @@ _RESUME_EXPORT_DIR   = os.getenv("RESUME_EXPORT_DIR", "")   # optional local syn
 _MIN_FIT_SCORE       = int(os.getenv("MIN_FIT_SCORE", "55"))  # skip delivery below this
 
 # ── Base resume paths (track → file) ──────────────────────────────────────────
-def get_base_resume_path(track: str) -> Path:
+def get_base_resume_path(track: str | None = None) -> Path:
     """
-    Resolve base resume path for a track.
-    Prefers user's personal base resume (e.g. data/base_resumes/base_ai_engineer.md)
-    if present; otherwise falls back to the open-source template
-    (e.g. data/base_resumes/template_ai_engineer.md).
+    Resolve base resume path.
+    Always loads base_master.md, falling back to template_master.md.
     """
-    track_key = "ai_engineer" if "AI" in track.upper() else "data_science"
-    personal = Path(f"data/base_resumes/base_{track_key}.md")
+    personal = Path("data/base_resumes/base_master.md")
     if personal.exists():
         return personal
-    template = Path(f"data/base_resumes/template_{track_key}.md")
+    template = Path("data/base_resumes/template_master.md")
     if template.exists():
         return template
     return personal
@@ -351,15 +348,20 @@ def _process_listing(
         return
 
     # ── Phase 7: Select base resume + apply patch ──────────────────────────────
-    base_md_path = get_base_resume_path(patch.track)
+    base_md_path = get_base_resume_path()
     if not base_md_path.exists():
-        logger.error("  Base resume not found for track %s — skipping", patch.track)
+        logger.error("  Base resume not found at %s — skipping", base_md_path)
         state.mark_seen(apply_url, title, company)
         stats["errors"] += 1
         return
 
     try:
-        patched_md = apply_patch(str(base_md_path), patch.extracted_keywords)
+        patched_md = apply_patch(
+            str(base_md_path),
+            patch.extracted_keywords,
+            selected_projects=patch.selected_projects,
+            track=patch.track,
+        )
     except Exception as exc:
         logger.error("  patch_applier failed: %s", exc)
         state.mark_seen(apply_url, title, company)

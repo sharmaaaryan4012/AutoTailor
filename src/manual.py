@@ -60,18 +60,15 @@ from src.ai_tailor.patch_applier import apply_patch
 from src.renderer.pdf_generator import render_to_pdf
 from src.delivery.discord_webhook import send_alert
 
-def get_base_resume_path(track: str) -> Path:
+def get_base_resume_path(track: str | None = None) -> Path:
     """
-    Resolve base resume path for a track.
-    Prefers user's personal base resume (e.g. data/base_resumes/base_ai_engineer.md)
-    if present; otherwise falls back to the open-source template
-    (e.g. data/base_resumes/template_ai_engineer.md).
+    Resolve base resume path.
+    Always loads base_master.md, falling back to template_master.md.
     """
-    track_key = "ai_engineer" if "AI" in track.upper() else "data_science"
-    personal = Path(f"data/base_resumes/base_{track_key}.md")
+    personal = Path("data/base_resumes/base_master.md")
     if personal.exists():
         return personal
-    template = Path(f"data/base_resumes/template_{track_key}.md")
+    template = Path("data/base_resumes/template_master.md")
     if template.exists():
         return template
     return personal
@@ -259,8 +256,8 @@ def tailor_manual(
 
         patch = generate_patch(jd_text)
         logger.info(
-            "Gemini assessment: track=%s, fit_score=%d, extracted_keywords=%s",
-            patch.track, patch.fit_score, patch.extracted_keywords,
+            "Gemini assessment: track=%s, fit_score=%d, extracted_keywords=%s, selected_projects=%s",
+            patch.track, patch.fit_score, patch.extracted_keywords, patch.selected_projects,
         )
 
         if not resolved_track:
@@ -281,17 +278,25 @@ def tailor_manual(
         resolved_track = "AI_ENGINEERING"
         logger.info("Track unspecified; defaulting to AI_ENGINEERING")
 
-    base_resume_path = get_base_resume_path(resolved_track)
+    base_resume_path = get_base_resume_path()
     if not base_resume_path.exists():
         raise FileNotFoundError(
-            f"Base resume for track '{resolved_track}' not found at {base_resume_path}"
+            f"Base resume not found at {base_resume_path}"
         )
 
+    selected_projs = patch.selected_projects if ("patch" in locals() and patch) else None
     logger.info("Target resume: %s", base_resume_path)
     logger.info("Keywords to inject: %s", injected_keywords or ["(none)"])
+    logger.info("Projects to inject: %s", selected_projs or ["(default)"])
+    logger.info("Track for certs: %s", resolved_track)
 
     # 1. Apply deterministic patch
-    patched_content = apply_patch(str(base_resume_path), injected_keywords)
+    patched_content = apply_patch(
+        str(base_resume_path),
+        injected_keywords,
+        selected_projects=selected_projs,
+        track=resolved_track,
+    )
 
     # 2. Render to single-page PDF
     _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
