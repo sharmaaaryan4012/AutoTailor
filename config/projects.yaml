@@ -31,16 +31,16 @@ projects:
   SKYRIPPLE:
     header: <div class="row bold"><span>SkyRipple | <a href="https://skyripple.saaryan.com">skyripple.saaryan.com</a></span><span>Oct 2026 &ndash; Nov 2026</span></div>
     bullets_4:
-    - Modeled 582k BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
+    - Modeled 582,000 BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
     - Orchestrated multi-agent operations recovery workflows, unlocking $145,000 in simulated airline disruption savings
     - Enforced deterministic fallback validation, ensuring 0% negative-yield recovery plans against counterfactuals
     - Engineered an in-memory passenger graph LRU cache using Apache Parquet, accelerating network simulation by 12x
     bullets_3:
-    - Modeled 582k BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
+    - Modeled 582,000 BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
     - Orchestrated multi-agent operations recovery workflows, unlocking $145,000 in simulated airline disruption savings
     - Enforced deterministic fallback validation, ensuring 0% negative-yield recovery plans against counterfactuals
     bullets_2:
-    - Modeled 582k BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
+    - Modeled 582,000 BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
     - Orchestrated multi-agent operations recovery workflows, unlocking $145,000 in simulated airline disruption savings
   TOUDM:
     header: <div class="row bold"><span>The Open Universal Data Marketplace | <a href="https://github.com/sharmaaaryan4012/OpenDataMarketplace-showcase">github.com/sharmaaaryan4012/OpenDataMarketplace-showcase</a></span><span>Oct
