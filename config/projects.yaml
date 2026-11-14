@@ -2,46 +2,46 @@ projects:
   DEX:
     header: <div class="row bold"><span>Dex | <a href="https://dex.saaryan.com">dex.saaryan.com</a></span><span>Oct 2026 &ndash; Present</span></div>
     bullets_4:
-    - Engineered a voice-to-CRM native iOS app in Swift 6 and FastAPI, cutting capture latency 52% via Gemini audio
+    - Engineered a voice-to-CRM native iOS app in Swift 6 and FastAPI, cutting capture latency 52% via multimodal audio
     - Enforced Pydantic schemas in FastAPI, ensuring 100% valid JSON contact extractions across 10,000 voice memos
     - Built private on-device iOS calendar entity extraction in Swift via Apple NLTagger, running sub-5ms NER offline
     - Architected local-first SwiftData and Apple CloudKit persistence in iOS, reducing central database costs to $0/mo
     bullets_3:
-    - Engineered a voice-to-CRM native iOS app in Swift 6 and FastAPI, cutting capture latency 52% via Gemini audio
+    - Engineered a voice-to-CRM native iOS app in Swift 6 and FastAPI, cutting capture latency 52% via multimodal audio
     - Enforced Pydantic schemas in FastAPI, ensuring 100% valid JSON contact extractions across 10,000 voice memos
     - Built private on-device iOS calendar entity extraction in Swift via Apple NLTagger, running sub-5ms NER offline
     bullets_2:
-    - Engineered a voice-to-CRM native iOS app in Swift 6 and FastAPI, cutting capture latency 52% via Gemini audio
+    - Engineered a voice-to-CRM native iOS app in Swift 6 and FastAPI, cutting capture latency 52% via multimodal audio
     - Enforced Pydantic schemas in FastAPI, ensuring 100% valid JSON contact extractions across 10,000 voice memos
   PLANSIGHT:
     header: <div class="row bold"><span>PlanSight | <a href="https://github.com/sharmaaaryan4012/PlanSight">github.com/sharmaaaryan4012/PlanSight</a></span><span>Nov
       2026</span></div>
     bullets_4:
-    - Engineered an architectural floor-plan VLM pipeline, cutting processing latency 65% and API token spend by 70%
-    - Engineered a deterministic Shapely geometry engine, isolating 100% of spatial hallucinations on CPU in under 5ms
+    - Developed an architectural floor-plan VLM pipeline, cutting processing latency 65% and API token spend by 70%
+    - Constructed a deterministic Shapely geometry engine, isolating 100% of spatial hallucinations on CPU in under 5ms
     - Enforced strict Pydantic schemas during VLM decoding, guaranteeing 100% structurally valid vector graph outputs
     - Extracted room geometries and door connectivity graphs from unannotated floor plan images with zero human input
     bullets_3:
-    - Engineered an architectural floor-plan VLM pipeline, cutting processing latency 65% and API token spend by 70%
-    - Engineered a deterministic Shapely geometry engine, isolating 100% of spatial hallucinations on CPU in under 5ms
+    - Developed an architectural floor-plan VLM pipeline, cutting processing latency 65% and API token spend by 70%
+    - Constructed a deterministic Shapely geometry engine, isolating 100% of spatial hallucinations on CPU in under 5ms
     - Enforced strict Pydantic schemas during VLM decoding, guaranteeing 100% structurally valid vector graph outputs
     bullets_2:
-    - Engineered an architectural floor-plan VLM pipeline, cutting processing latency 65% and API token spend by 70%
-    - Engineered a deterministic Shapely geometry engine, isolating 100% of spatial hallucinations on CPU in under 5ms
+    - Developed an architectural floor-plan VLM pipeline, cutting processing latency 65% and API token spend by 70%
+    - Constructed a deterministic Shapely geometry engine, isolating 100% of spatial hallucinations on CPU in under 5ms
   SKYRIPPLE:
     header: <div class="row bold"><span>SkyRipple | <a href="https://skyripple.saaryan.com">skyripple.saaryan.com</a></span><span>Oct 2026 &ndash; Nov 2026</span></div>
     bullets_4:
     - Modeled 582k BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
-    - Orchestrated multi-agent Gemini recovery workflows, unlocking $145,000 in simulated airline disruption savings
+    - Orchestrated multi-agent operations recovery workflows, unlocking $145,000 in simulated airline disruption savings
     - Enforced deterministic fallback validation, ensuring 0% negative-yield recovery plans against counterfactuals
     - Engineered an in-memory passenger graph LRU cache using Apache Parquet, accelerating network simulation by 12x
     bullets_3:
     - Modeled 582k BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
-    - Orchestrated multi-agent Gemini recovery workflows, unlocking $145,000 in simulated airline disruption savings
+    - Orchestrated multi-agent operations recovery workflows, unlocking $145,000 in simulated airline disruption savings
     - Enforced deterministic fallback validation, ensuring 0% negative-yield recovery plans against counterfactuals
     bullets_2:
     - Modeled 582k BTS flight legs in a Python discrete-event simulation, cutting cascade compute from 212s to 18s
-    - Orchestrated multi-agent Gemini recovery workflows, unlocking $145,000 in simulated airline disruption savings
+    - Orchestrated multi-agent operations recovery workflows, unlocking $145,000 in simulated airline disruption savings
   TOUDM:
     header: <div class="row bold"><span>The Open Universal Data Marketplace | <a href="https://github.com/sharmaaaryan4012/OpenDataMarketplace-showcase">github.com/sharmaaaryan4012/OpenDataMarketplace-showcase</a></span><span>Oct
       2026</span></div>
@@ -76,14 +76,14 @@ projects:
     header: <div class="row bold"><span>PacketLens | <a href="https://github.com/sharmaaaryan4012/PacketLens">github.com/sharmaaaryan4012/PacketLens</a></span><span>Oct
       2026</span></div>
     bullets_4:
-    - Engineered a zero-dependency Python PCAP/PCAPNG parser, unpacking raw binary captures in under 8ms on the CPU
+    - Constructed a zero-dependency Python PCAP/PCAPNG parser, unpacking raw binary captures in under 8ms on the CPU
     - Reconstructed bidirectional TCP flows to detect 3x duplicate ACKs, retransmissions, and flow latency anomalies
     - Decoded QinQ VLAN tags, IPv4/IPv6, and TCP headers directly from raw binary bytes without external libraries
     - Linked all diagnostic findings to exact packet indices, exporting schema-versioned JSON and CSV incident reports
     bullets_3:
-    - Engineered a zero-dependency Python PCAP/PCAPNG parser, unpacking raw binary captures in under 8ms on the CPU
+    - Constructed a zero-dependency Python PCAP/PCAPNG parser, unpacking raw binary captures in under 8ms on the CPU
     - Reconstructed bidirectional TCP flows to detect 3x duplicate ACKs, retransmissions, and flow latency anomalies
     - Decoded QinQ VLAN tags, IPv4/IPv6, and TCP headers directly from raw binary bytes without external libraries
     bullets_2:
-    - Engineered a zero-dependency Python PCAP/PCAPNG parser, unpacking raw binary captures in under 8ms on the CPU
+    - Constructed a zero-dependency Python PCAP/PCAPNG parser, unpacking raw binary captures in under 8ms on the CPU
     - Reconstructed bidirectional TCP flows to detect 3x duplicate ACKs, retransmissions, and flow latency anomalies
