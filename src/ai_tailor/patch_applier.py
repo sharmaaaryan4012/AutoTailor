@@ -40,6 +40,43 @@ CERTIFICATIONS: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
+# High-Level Discipline & Redundant Buzzword Blacklist
+# (These represent broad domains or category headers, not specific tools/libraries)
+# ---------------------------------------------------------------------------
+
+GENERIC_DISCIPLINE_BLACKLIST: set[str] = {
+    "machine learning",
+    "ml",
+    "artificial intelligence",
+    "ai",
+    "deep learning",
+    "dl",
+    "data science",
+    "ds",
+    "data analytics",
+    "analytics",
+    "software engineering",
+    "swe",
+    "computer science",
+    "cs",
+    "natural language processing",
+    "nlp",
+    "computer vision",
+    "cv",
+    "reinforcement learning",
+    "rl",
+    "generative ai",
+    "genai",
+    "data modeling",
+    "data analysis",
+    "statistics",
+    "statistical modeling",
+    "predictive modeling",
+    "algorithms",
+    "data structures",
+}
+
+# ---------------------------------------------------------------------------
 # Master Canonical Casing Dictionary
 # ---------------------------------------------------------------------------
 
@@ -278,7 +315,20 @@ def apply_patch(
 
     content = path.read_text(encoding="utf-8")
 
-    # 1. Deterministic Keyword Injection (if keywords provided)
+    # 1. Dynamic Certifications Injection based on track (executed FIRST so keyword deduplication sees them)
+    normalized_track = "DATA_SCIENCE" if "DATA" in (track or "").upper() else "AI_ENGINEERING"
+    certs_to_inject = CERTIFICATIONS.get(normalized_track, CERTIFICATIONS["AI_ENGINEERING"])
+    cert_pattern = re.compile(
+        r"(?P<prefix><div[^>]*><!--\s*ID:\s*SKILLS_CERT\s*-->\s*)(?P<certs>.*?)(?P<suffix></div>\s*</div>)",
+        re.IGNORECASE,
+    )
+    if cert_pattern.search(content):
+        content = cert_pattern.sub(rf"\g<prefix>{certs_to_inject}\g<suffix>", content, count=1)
+        logger.info("Injected %s certifications into %s: %s", normalized_track, path.name, certs_to_inject)
+    else:
+        logger.warning("<!-- ID: SKILLS_CERT --> not found in %s — certs unchanged", path.name)
+
+    # 2. Deterministic Keyword Injection (if keywords provided)
     if extracted_keywords:
         # Clean, canonicalize, and deduplicate incoming keywords preserving order
         seen_lower: set[str] = set()
@@ -323,6 +373,7 @@ def apply_patch(
                         suffix = match.group("suffix")
                         category_text = tag_name.replace("SKILLS_", "").replace("_", " ").title() + ":"
 
+                    category_lower = category_text.lower()
                     existing_skills = match.group("skills").strip()
 
                     # Existing tokens in the current line (case-insensitive)
@@ -330,10 +381,12 @@ def apply_patch(
                         token.strip().lower() for token in re.split(r"[,;]+", existing_skills) if token.strip()
                     }
 
-                    # Collect all skills across the entire Skills section to prevent cross-category repetition
+                    # Collect all skills and text across the entire Skills section to prevent cross-category repetition
                     skills_section_match = re.search(r"<h2>\s*Skills\s*</h2>(.*?)(?=\n<h2|\Z)", content, re.DOTALL | re.IGNORECASE)
+                    section_text_lower = ""
                     section_tokens: set[str] = set()
                     if skills_section_match:
+                        section_text_lower = skills_section_match.group(1).lower()
                         raw_text = re.sub(r"<!--.*?-->", " ", skills_section_match.group(1))
                         raw_text = re.sub(r"<[^>]+>", " ", raw_text)
                         for tok in re.split(r"[,;:\n\(\)]+", raw_text):
@@ -348,29 +401,39 @@ def apply_patch(
                         kw_clean = kw.strip()
                         kw_lower = kw_clean.lower()
 
-                        # Task 2: Fix Skill Repetition
-                        # Check if keyword (case-insensitive) already exists in current line or skills section
+                        # 1. Skip high-level discipline or generic domain terms
+                        if kw_lower in GENERIC_DISCIPLINE_BLACKLIST:
+                            logger.info("Skipping generic discipline/domain keyword '%s' (not a concrete tool/framework)", kw_clean)
+                            continue
+
+                        # 2. Check if keyword matches or is part of the category title (using word boundaries to avoid false substring hits like 'r' or 'c')
+                        if re.search(rf"\b{re.escape(kw_lower)}\b", category_lower):
+                            logger.info("Skipping keyword '%s' (already in category title '%s')", kw_clean, category_text)
+                            continue
+
+                        # 3. Check for duplicates in current line, section tokens, or entire skills section text
                         if (
                             kw_lower in existing_tokens
                             or re.search(rf"\b{re.escape(kw_lower)}\b", existing_skills.lower())
                             or kw_lower in section_tokens
+                            or re.search(rf"\b{re.escape(kw_lower)}\b", section_text_lower)
                         ):
                             logger.debug("Skipping duplicate skill '%s' (already exists in resume)", kw_clean)
                             continue
 
-                        # Task 3: Prevent Skill Line Wrapping
-                        # Calculate the new projected line length of the visual text
+                        # 4. Prevent Skill Line Wrapping
+                        # The skills list <div> has width 547px (out of 717px page width, since .skills-category takes 170px).
+                        # In Times New Roman 10.5pt, the right column physically wraps at 88-89 characters.
+                        # We enforce a strict max of 84 characters for the skills text string to prevent wrapping.
                         projected_skills = f"{current_skills}, {kw_clean}" if current_skills else kw_clean
-                        projected_visual_text = f"{category_text} {projected_skills}".strip()
 
-                        if len(projected_visual_text) > 115:
+                        if len(projected_skills) > 84:
                             logger.info(
-                                "Skipping skill '%s' to prevent wrapping: projected length (%d) > 115 chars [Category: %s]",
-                                kw_clean, len(projected_visual_text), category_text,
+                                "Skipping skill '%s' to prevent wrapping: projected length (%d) > 84 chars [Category: %s]",
+                                kw_clean, len(projected_skills), category_text,
                             )
                             continue
 
-                        # Fits within 115 characters without wrapping
                         current_skills = projected_skills
                         existing_tokens.add(kw_lower)
                         section_tokens.add(kw_lower)
@@ -382,7 +445,7 @@ def apply_patch(
                     appended_str = ", ".join(new_kws)
                     logger.info(
                         "Injected %d keywords into %s [%s] (%d visual chars): %s",
-                        len(new_kws), path.name, tag_name, len(f"{category_text} {current_skills}"), appended_str,
+                        len(new_kws), path.name, tag_name, len(current_skills), appended_str,
                     )
                     return f"{prefix}{current_skills}{suffix}"
 
@@ -394,19 +457,6 @@ def apply_patch(
                     logger.warning("Could not match line structure for %s — skills line unchanged", tag_name)
             else:
                 logger.warning("No target skills tag found in %s — skills unchanged", path.name)
-
-    # 2. Dynamic Certifications Injection based on track
-    normalized_track = "DATA_SCIENCE" if "DATA" in (track or "").upper() else "AI_ENGINEERING"
-    certs_to_inject = CERTIFICATIONS.get(normalized_track, CERTIFICATIONS["AI_ENGINEERING"])
-    cert_pattern = re.compile(
-        r"(?P<prefix><div[^>]*><!--\s*ID:\s*SKILLS_CERT\s*-->\s*)(?P<certs>.*?)(?P<suffix></div>\s*</div>)",
-        re.IGNORECASE,
-    )
-    if cert_pattern.search(content):
-        content = cert_pattern.sub(rf"\g<prefix>{certs_to_inject}\g<suffix>", content, count=1)
-        logger.info("Injected %s certifications into %s: %s", normalized_track, path.name, certs_to_inject)
-    else:
-        logger.warning("<!-- ID: SKILLS_CERT --> not found in %s — certs unchanged", path.name)
 
     # 3. Modular Project Bank Injection
     projects_marker = "<!-- ID: PROJECTS_START -->"

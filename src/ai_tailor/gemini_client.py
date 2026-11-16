@@ -123,7 +123,9 @@ Your job is to read the provided Job Description (JD) and perform ONLY three tas
 2. Technical Keyword Extraction:
    - Extract ONLY "Core Requirements" rather than "Nice-to-haves" or preferred qualifications.
    - Strictly adhere to this negative prompt: Do not extract hardware-level or highly specialized systems skills (e.g., CUDA, eBPF) unless the role is explicitly a Systems, Hardware, or High-Performance Computing role. For general Data Science or standard ML roles, restrict extractions to core modeling, data manipulation, and deployment frameworks (e.g., PyTorch, TensorFlow, scikit-learn, Pandas, Spark, Polars, Docker, FastAPI).
-   - Identify up to 5 key technical skills, libraries, frameworks, or tools explicitly required in the JD matching these criteria.
+   - STRICT DISCIPLINE EXCLUSION: Under NO circumstances extract generic domain, field, or discipline names (e.g., "Machine Learning", "Artificial Intelligence", "AI", "Deep Learning", "Data Science", "Data Analytics", "Software Engineering", "Computer Science", "Natural Language Processing", "Computer Vision", "Statistics", "Data Modeling").
+   - Extract ONLY concrete, granular technical tools, frameworks, libraries, systems, platforms, or programming languages explicitly required in the JD matching these criteria.
+   - Identify up to 5 key technical skills matching these criteria.
    - Do NOT rewrite or modify any resume bullets.
    - Do NOT hallucinate credentials or skills outside technical software/data domain.
 
