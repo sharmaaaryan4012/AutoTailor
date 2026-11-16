@@ -176,10 +176,15 @@ CANONICAL_KEYWORDS: dict[str, str] = {
 
     # Web & API Frameworks
     "fastapi": "FastAPI",
+    "fast api": "FastAPI",
     "flask": "Flask",
     "django": "Django",
-    "rest": "REST",
-    "restful": "RESTful",
+    "rest": "REST APIs",
+    "rest api": "REST APIs",
+    "rest apis": "REST APIs",
+    "restful": "REST APIs",
+    "restful api": "REST APIs",
+    "restful apis": "REST APIs",
     "graphql": "GraphQL",
     "grpc": "gRPC",
     "websockets": "WebSockets",
@@ -239,6 +244,93 @@ def canonicalize_keyword(keyword: str) -> str:
     """
     cleaned = keyword.strip()
     return CANONICAL_KEYWORDS.get(cleaned.lower(), cleaned)
+
+
+# ---------------------------------------------------------------------------
+# Skill Category Dictionaries & Classification for ATS Routing
+# ---------------------------------------------------------------------------
+
+LANG_KEYWORDS: set[str] = {
+    "python", "c++", "cpp", "c#", "c", "java", "javascript", "typescript",
+    "sql", "nosql", "r", "rust", "go", "golang", "scala", "julia", "bash",
+    "shell", "zsh", "swift", "kotlin", "ruby", "php", "perl", "dart",
+    "html", "css", "matlab", "assembly", "lua", "powershell",
+}
+
+AI_ML_KEYWORDS: set[str] = {
+    # Core Machine Learning & Deep Learning Frameworks
+    "pytorch", "tensorflow", "keras", "jax", "flax", "haiku", "scikit-learn",
+    "sklearn", "xgboost", "lightgbm", "catboost", "pandas", "polars", "numpy",
+    "scipy", "sympy", "opencv", "cv2", "torchaudio", "torchvision", "tabddpm",
+    # Inference, Serving & Model Runtimes
+    "vllm", "triton", "triton inference server", "tensorrt", "tensorrt-llm",
+    "onnx", "onnx runtime", "onnxruntime", "tgi", "ollama", "llama.cpp", "deepsparse",
+    # LLM, Agentic & GenAI Frameworks
+    "langchain", "langgraph", "llamaindex", "semantic kernel", "autogen",
+    "crewai", "dspy", "huggingface", "hugging face", "transformers", "diffusers",
+    "peft", "lora", "qlora", "openai", "anthropic", "gemini",
+    # Vector Databases & Embeddings
+    "chromadb", "chroma", "pinecone", "weaviate", "milvus", "qdrant", "faiss",
+    # MLOps & Experiment Tracking
+    "mlflow", "wandb", "weights & biases", "neptune", "dvc", "kubeflow",
+    "seldon", "ray", "ray train", "ray tune", "vertex ai", "sagemaker",
+}
+
+SWE_KEYWORDS: set[str] = {
+    # Operating Systems & Low-Level Systems
+    "linux", "unix", "ubuntu", "debian", "centos", "rhel", "redhat", "alpine",
+    "posix", "windows server", "kernel", "ebpf", "pcap", "tcp/ip", "socket",
+    # Cloud, DevOps & Infrastructure
+    "docker", "kubernetes", "k8s", "helm", "terraform", "ansible", "git",
+    "github actions", "gitlab ci", "ci/cd", "aws", "gcp", "azure", "cloud",
+    "serverless", "lambda", "ecs", "eks", "gke", "nginx", "traefik", "envoy",
+    # Web & API Frameworks
+    "fastapi", "flask", "django", "rest", "restful", "graphql", "grpc",
+    "websockets", "node.js", "nodejs", "express", "react", "next.js", "nextjs",
+    "vue", "angular", "svelte", ".net", "dotnet", "spring", "spring boot",
+    # Databases & Storage
+    "postgresql", "postgres", "mysql", "sqlite", "mongodb", "redis",
+    "cassandra", "snowflake", "bigquery", "redshift", "dynamodb", "elasticsearch",
+    "opensearch", "neo4j", "memcached", "clickhouse",
+    # Distributed Systems & Data Pipelines
+    "kafka", "apache kafka", "rabbitmq", "celery", "airflow", "apache airflow",
+    "spark", "apache spark", "pyspark", "hadoop", "flink", "apache flink",
+    "dask", "dbt", "prefect", "dagster",
+}
+
+TAG_TARGETS: dict[str, list[str]] = {
+    "SKILLS_LANG": ["SKILLS_LANG"],
+    "SKILLS_SWE": ["SKILLS_SWE", "SKILLS_AI_SYS"],
+    "SKILLS_AI_ML": ["SKILLS_AI_ML", "SKILLS_ML"],
+}
+
+
+def classify_skill_category(keyword: str) -> str:
+    """
+    Classify an extracted skill into its appropriate resume category:
+      - 'SKILLS_LANG' for Programming Languages
+      - 'SKILLS_SWE' for Software Engineering, OS, Cloud, Web, Databases, DevOps
+      - 'SKILLS_AI_ML' for AI/ML Frameworks, Modeling, Vector DBs, LLMs
+    """
+    k = keyword.strip().lower()
+    if k in LANG_KEYWORDS:
+        return "SKILLS_LANG"
+    if k in AI_ML_KEYWORDS:
+        return "SKILLS_AI_ML"
+    if k in SWE_KEYWORDS:
+        return "SKILLS_SWE"
+
+    # Heuristic domain token matches
+    ai_tokens = ("model", "neural", "vision", "audio", "embed", "agent", "prompt", "token", "diffusion")
+    if any(tok in k for tok in ai_tokens):
+        return "SKILLS_AI_ML"
+
+    lang_tokens = ("script", "lang")
+    if any(tok in k for tok in lang_tokens):
+        return "SKILLS_LANG"
+
+    # Default to Software Engineering for general engineering tools, libraries, systems
+    return "SKILLS_SWE"
 
 
 def _build_projects_html(selected_projects: list[str], projects_db: dict) -> str:
@@ -342,121 +434,136 @@ def apply_patch(
                 clean_kws.append(canonical)
 
         if clean_kws:
-            # Find the primary skill injection target:
-            # Look for SKILLS_AI_ML or SKILLS_ML first, otherwise SKILLS_SWE or SKILLS_AI_SYS
-            primary_target = re.search(r"<!--\s*ID:\s*(SKILLS_AI_ML|SKILLS_ML)\s*-->", content, re.IGNORECASE)
-            if not primary_target:
-                primary_target = re.search(r"<!--\s*ID:\s*(SKILLS_SWE|SKILLS_AI_SYS)\s*-->", content, re.IGNORECASE)
+            # Route clean keywords to their respective target categories
+            routed_kws: dict[str, list[str]] = {
+                "SKILLS_LANG": [],
+                "SKILLS_SWE": [],
+                "SKILLS_AI_ML": [],
+            }
+            for kw in clean_kws:
+                kw_lower = kw.lower()
+                if kw_lower in GENERIC_DISCIPLINE_BLACKLIST:
+                    logger.info("Skipping generic discipline/domain keyword '%s' (not a concrete tool/framework)", kw)
+                    continue
+                target_tag = classify_skill_category(kw)
+                routed_kws[target_tag].append(kw)
 
-            if primary_target:
-                tag_name = primary_target.group(1)
+            # Collect text across the entire Skills section once for global cross-category deduplication
+            skills_section_match = re.search(r"<h2>\s*Skills\s*</h2>(.*?)(?=\n<h2|\Z)", content, re.DOTALL | re.IGNORECASE)
+            section_text_lower = skills_section_match.group(1).lower() if skills_section_match else ""
+            section_tokens: set[str] = set()
+            if skills_section_match:
+                raw_text = re.sub(r"<!--.*?-->", " ", skills_section_match.group(1))
+                raw_text = re.sub(r"<[^>]+>", " ", raw_text)
+                for tok in re.split(r"[,;:\n\(\)]+", raw_text):
+                    cleaned_tok = tok.strip().lower()
+                    if cleaned_tok:
+                        section_tokens.add(cleaned_tok)
 
-                # Pattern matches the entire skill row containing the category and tag:
-                # <div class="skills-row"><div class="skills-category">Category:</div><div><!-- ID: TAG --> Existing skills...</div></div>
+            # Inject into each targeted category row
+            for target_key, kws_to_inject in routed_kws.items():
+                if not kws_to_inject:
+                    continue
+
+                possible_tags = TAG_TARGETS.get(target_key, [target_key])
+                tag_name = None
+                for pt in possible_tags:
+                    if re.search(rf"<!--\s*ID:\s*{pt}\s*-->", content, re.IGNORECASE):
+                        tag_name = pt
+                        break
+
+                if not tag_name:
+                    logger.debug("No matching tag found for category %s in %s", target_key, path.name)
+                    continue
+
                 row_pattern = re.compile(
                     rf'(?P<row_prefix><div class="skills-row">\s*<div class="skills-category">\s*(?P<category>[^<]+?)\s*</div>\s*<div>\s*<!--\s*ID:\s*{tag_name}\s*-->\s*)(?P<skills>.*?)(?P<row_suffix></div>\s*</div>)',
                     re.IGNORECASE,
                 )
-                # Fallback pattern if row structure differs
                 line_pattern = re.compile(
                     rf"(?P<prefix><div[^>]*><!--\s*ID:\s*{tag_name}\s*-->\s*)(?P<skills>.*?)(?P<suffix></div>\s*</div>)",
                     re.IGNORECASE,
                 )
 
-                def _inject(match: re.Match) -> str:
-                    if "row_prefix" in match.groupdict() and match.group("row_prefix"):
-                        prefix = match.group("row_prefix")
-                        suffix = match.group("row_suffix")
-                        category_text = match.group("category").strip()
-                    else:
-                        prefix = match.group("prefix")
-                        suffix = match.group("suffix")
-                        category_text = tag_name.replace("SKILLS_", "").replace("_", " ").title() + ":"
+                def _make_injector(kws: list[str], t_name: str):
+                    def _inject(match: re.Match) -> str:
+                        if "row_prefix" in match.groupdict() and match.group("row_prefix"):
+                            prefix = match.group("row_prefix")
+                            suffix = match.group("row_suffix")
+                            category_text = match.group("category").strip()
+                        else:
+                            prefix = match.group("prefix")
+                            suffix = match.group("suffix")
+                            category_text = t_name.replace("SKILLS_", "").replace("_", " ").title() + ":"
 
-                    category_lower = category_text.lower()
-                    existing_skills = match.group("skills").strip()
+                        category_lower = category_text.lower()
+                        existing_skills = match.group("skills").strip()
 
-                    # Existing tokens in the current line (case-insensitive)
-                    existing_tokens = {
-                        token.strip().lower() for token in re.split(r"[,;]+", existing_skills) if token.strip()
-                    }
+                        # Existing tokens in the current line (case-insensitive)
+                        existing_tokens = {
+                            token.strip().lower() for token in re.split(r"[,;]+", existing_skills) if token.strip()
+                        }
 
-                    # Collect all skills and text across the entire Skills section to prevent cross-category repetition
-                    skills_section_match = re.search(r"<h2>\s*Skills\s*</h2>(.*?)(?=\n<h2|\Z)", content, re.DOTALL | re.IGNORECASE)
-                    section_text_lower = ""
-                    section_tokens: set[str] = set()
-                    if skills_section_match:
-                        section_text_lower = skills_section_match.group(1).lower()
-                        raw_text = re.sub(r"<!--.*?-->", " ", skills_section_match.group(1))
-                        raw_text = re.sub(r"<[^>]+>", " ", raw_text)
-                        for tok in re.split(r"[,;:\n\(\)]+", raw_text):
-                            cleaned_tok = tok.strip().lower()
-                            if cleaned_tok:
-                                section_tokens.add(cleaned_tok)
+                        current_skills = existing_skills
+                        new_kws: list[str] = []
 
-                    current_skills = existing_skills
-                    new_kws: list[str] = []
+                        for kw in kws:
+                            kw_clean = kw.strip()
+                            kw_lower = kw_clean.lower()
 
-                    for kw in clean_kws:
-                        kw_clean = kw.strip()
-                        kw_lower = kw_clean.lower()
+                            # 1. Check if keyword matches or is part of the category title (word-boundary)
+                            if re.search(rf"\b{re.escape(kw_lower)}\b", category_lower):
+                                logger.info("Skipping keyword '%s' (already in category title '%s')", kw_clean, category_text)
+                                continue
 
-                        # 1. Skip high-level discipline or generic domain terms
-                        if kw_lower in GENERIC_DISCIPLINE_BLACKLIST:
-                            logger.info("Skipping generic discipline/domain keyword '%s' (not a concrete tool/framework)", kw_clean)
-                            continue
+                            # 2. Check for duplicates in current line, section tokens, or entire skills section text
+                            if (
+                                kw_lower in existing_tokens
+                                or re.search(rf"\b{re.escape(kw_lower)}\b", existing_skills.lower())
+                                or kw_lower in section_tokens
+                                or re.search(rf"\b{re.escape(kw_lower)}\b", section_text_lower)
+                            ):
+                                logger.debug("Skipping duplicate skill '%s' (already exists in resume)", kw_clean)
+                                continue
 
-                        # 2. Check if keyword matches or is part of the category title (using word boundaries to avoid false substring hits like 'r' or 'c')
-                        if re.search(rf"\b{re.escape(kw_lower)}\b", category_lower):
-                            logger.info("Skipping keyword '%s' (already in category title '%s')", kw_clean, category_text)
-                            continue
+                            # 3. Prevent Skill Line Wrapping
+                            # The skills list <div> has width 547px (out of 717px page width, since .skills-category takes 170px).
+                            # In Times New Roman 10.5pt, the right column physically wraps at 88-89 characters.
+                            # We enforce a strict max of 84 characters for the skills text string to prevent wrapping.
+                            projected_skills = f"{current_skills}, {kw_clean}" if current_skills else kw_clean
 
-                        # 3. Check for duplicates in current line, section tokens, or entire skills section text
-                        if (
-                            kw_lower in existing_tokens
-                            or re.search(rf"\b{re.escape(kw_lower)}\b", existing_skills.lower())
-                            or kw_lower in section_tokens
-                            or re.search(rf"\b{re.escape(kw_lower)}\b", section_text_lower)
-                        ):
-                            logger.debug("Skipping duplicate skill '%s' (already exists in resume)", kw_clean)
-                            continue
+                            if len(projected_skills) > 84:
+                                logger.info(
+                                    "Skipping skill '%s' to prevent wrapping: projected length (%d) > 84 chars [Category: %s]",
+                                    kw_clean, len(projected_skills), category_text,
+                                )
+                                continue
 
-                        # 4. Prevent Skill Line Wrapping
-                        # The skills list <div> has width 547px (out of 717px page width, since .skills-category takes 170px).
-                        # In Times New Roman 10.5pt, the right column physically wraps at 88-89 characters.
-                        # We enforce a strict max of 84 characters for the skills text string to prevent wrapping.
-                        projected_skills = f"{current_skills}, {kw_clean}" if current_skills else kw_clean
+                            current_skills = projected_skills
+                            existing_tokens.add(kw_lower)
+                            section_tokens.add(kw_lower)
+                            new_kws.append(kw_clean)
 
-                        if len(projected_skills) > 84:
-                            logger.info(
-                                "Skipping skill '%s' to prevent wrapping: projected length (%d) > 84 chars [Category: %s]",
-                                kw_clean, len(projected_skills), category_text,
-                            )
-                            continue
+                        if not new_kws:
+                            return match.group(0)
 
-                        current_skills = projected_skills
-                        existing_tokens.add(kw_lower)
-                        section_tokens.add(kw_lower)
-                        new_kws.append(kw_clean)
-
-                    if not new_kws:
-                        return match.group(0)
-
-                    appended_str = ", ".join(new_kws)
-                    logger.info(
-                        "Injected %d keywords into %s [%s] (%d visual chars): %s",
-                        len(new_kws), path.name, tag_name, len(current_skills), appended_str,
-                    )
-                    return f"{prefix}{current_skills}{suffix}"
+                        appended_str = ", ".join(new_kws)
+                        logger.info(
+                            "Injected %d keywords into %s [%s] (%d visual chars): %s",
+                            len(new_kws), path.name, t_name, len(current_skills), appended_str,
+                        )
+                        return f"{prefix}{current_skills}{suffix}"
+                    return _inject
 
                 pattern_to_use = row_pattern if row_pattern.search(content) else line_pattern
-                updated_content, count = pattern_to_use.subn(_inject, content, count=1)
+                injector = _make_injector(kws_to_inject, tag_name)
+                updated_content, count = pattern_to_use.subn(injector, content, count=1)
                 if count > 0:
                     content = updated_content
-                else:
-                    logger.warning("Could not match line structure for %s — skills line unchanged", tag_name)
-            else:
-                logger.warning("No target skills tag found in %s — skills unchanged", path.name)
+                    # Refresh section_text_lower for subsequent categories
+                    skills_section_match = re.search(r"<h2>\s*Skills\s*</h2>(.*?)(?=\n<h2|\Z)", content, re.DOTALL | re.IGNORECASE)
+                    if skills_section_match:
+                        section_text_lower = skills_section_match.group(1).lower()
 
     # 3. Modular Project Bank Injection
     projects_marker = "<!-- ID: PROJECTS_START -->"
