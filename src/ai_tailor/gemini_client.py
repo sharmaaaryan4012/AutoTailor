@@ -119,6 +119,8 @@ Your job is to read the provided Job Description (JD) and perform ONLY three tas
      * Strongly prioritize core technical roles: "Machine Learning", "AI Engineer", "Research Scientist", and "Data Scientist".
      * Apply a severe penalty (-50 points) for generic titles like "Data and Analytics", "Data Analytics", or business-oriented roles that do NOT have "Engineer" or "Scientist" attached.
      * Hard-classify non-technical/business roles (advisors, generic business analysts, operations, sales, rotational development programs) as IRRELEVANT with fit_score < 40.
+     * STRICT DEGREE CONSTRAINT: The candidate holds a BS in Mathematics & Computer Science (UIUC Grainger) and a Master in Management (Northwestern Kellogg). The candidate does NOT hold a PhD. If a role strictly requires or targets PhD/Doctoral candidates (e.g., 'PhD Early Career', 'PhD Research Scientist', 'Doctorate required') with no BS/MS alternative, classify as IRRELEVANT with fit_score < 30.
+     * CANDIDATE CALIBER CONSTRAINT: The candidate is an elite technical graduate with production experience in deep learning, distributed simulations, and agentic AI. Reject sub-level or low-complexity engineering roles (e.g., 'Level 0', 'Skill Level 0', IT support, help desk, technician, manual QA, data collection) as IRRELEVANT with fit_score < 20.
 
 2. Technical Keyword Extraction:
    - Extract ONLY "Core Requirements" rather than "Nice-to-haves" or preferred qualifications.

@@ -49,6 +49,8 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import requests
 import yaml
 
+from src.filtering.eligibility import check_title_ineligibility
+
 logger = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -253,6 +255,10 @@ class SimplifyNewGradAdapter:
                 continue
 
             title = _STRIP_EMOJI.sub("", raw_title).strip()
+            bad_title = check_title_ineligibility(title)
+            if bad_title:
+                logger.debug("Skipping ineligible title (%s): %s @ %s", bad_title["label"], title, company)
+                continue
 
             # ── Cell 2: Location ──────────────────────────────────────────────
             location = _extract_location(cells[2])
@@ -454,6 +460,55 @@ def fetch_smartrecruiters_text(details_url: str, timeout: int = 15) -> str:
     return "\n".join(parts).strip()
 
 
+def fetch_workable_text(details_url: str, timeout: int = 15) -> str:
+    """
+    Fetch clean full job description text directly from Workable's Public Posting API
+    (e.g., https://apply.workable.com/api/v2/accounts/raydar/jobs/{shortcode})
+    without launching Playwright.
+    """
+    if not details_url:
+        return ""
+    try:
+        resp = requests.get(details_url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("Workable detail fetch failed (%s): %s", details_url, exc)
+        return ""
+
+    parts: list[str] = []
+    title = data.get("title") or ""
+    account = (
+        details_url.split("/accounts/")[1].split("/")[0].capitalize()
+        if "/accounts/" in details_url
+        else "Company"
+    )
+    loc = data.get("location") or {}
+    loc_parts = [p for p in (loc.get("city"), loc.get("region"), loc.get("country")) if p]
+    loc_str = ", ".join(loc_parts)
+    workplace = data.get("workplace") or ""
+
+    if title:
+        parts.append(f"{title} at {account}")
+    if loc_str:
+        wp_suffix = f" ({workplace})" if workplace else ""
+        parts.append(f"Location: {loc_str}{wp_suffix}")
+
+    for sec_key, sec_label in [
+        ("description", "Job Description"),
+        ("requirements", "Requirements"),
+        ("benefits", "Benefits"),
+    ]:
+        html_val = data.get(sec_key) or ""
+        if html_val:
+            txt = html_lib.unescape(re.sub(r"<[^>]+>", "\n", html_val))
+            txt = re.sub(r"\n{3,}", "\n\n", txt).strip()
+            if txt:
+                parts.append(f"\n## {sec_label}\n{txt}")
+
+    return "\n".join(parts).strip()
+
+
 # ── SpeedyApply AI New Grad Adapter ────────────────────────────────────────────
 
 _SPEEDYAPPLY_USA_URL = (
@@ -507,6 +562,10 @@ class SpeedyApplyNewGradAdapter:
             flags = [e for e in _HARD_REJECT_EMOJI if e in raw_title]
             hard_reject_hint = bool(flags)
             title = _STRIP_EMOJI.sub("", raw_title).strip()
+            bad_title = check_title_ineligibility(title)
+            if bad_title:
+                logger.debug("Skipping ineligible title (%s): %s @ %s", bad_title["label"], title, company)
+                continue
 
             location = html_lib.unescape(_extract_location(cols[2]))
             apply_url = _extract_first_href(cols[4])
@@ -611,6 +670,10 @@ class ZapplyNewGradAdapter:
                     continue
 
                 title = _STRIP_EMOJI.sub("", raw_title).strip()
+                bad_title = check_title_ineligibility(title)
+                if bad_title:
+                    logger.debug("Skipping ineligible title (%s): %s @ %s", bad_title["label"], title, company)
+                    continue
                 if self.exclude_internships and _INTERN_TITLE_RE.search(title):
                     continue
                 if re.search(
@@ -752,6 +815,11 @@ class SmartRecruitersAdapter:
                 if not title or not company:
                     continue
 
+                bad_title = check_title_ineligibility(title)
+                if bad_title:
+                    logger.debug("Skipping ineligible title (%s): %s @ %s", bad_title["label"], title, company)
+                    continue
+
                 if self.exclude_internships and _INTERN_TITLE_RE.search(title):
                     continue
                 title_for_seniority = re.sub(
@@ -804,6 +872,109 @@ class SmartRecruitersAdapter:
         return ordered[: self.max_listings]
 
 
+# ── Raydar Workable Adapter ───────────────────────────────────────────────────
+
+_WORKABLE_WIDGET_URL = "https://apply.workable.com/api/v1/widget/accounts/{account}"
+
+
+class RaydarAdapter:
+    """
+    Queries Raydar's public Workable job board (apply.workable.com/raydar)
+    for fresh US AI/ML, Data Science, and New Grad SWE postings, filtering strictly
+    by recency, degree level (dropping PhDs), and non-technical roles.
+    """
+
+    def __init__(
+        self,
+        account: str = "raydar",
+        max_listings: int = 40,
+        max_age_days: int = 14,
+        countries: tuple[str, ...] = ("us", "united states"),
+        exclude_internships: bool = True,
+    ) -> None:
+        self.account = account
+        self.max_listings = max_listings
+        self.max_age_days = max_age_days
+        self.countries = {c.lower() for c in countries}
+        self.exclude_internships = exclude_internships
+
+    def fetch(self) -> list[JobListing]:
+        url = _WORKABLE_WIDGET_URL.format(account=self.account)
+        logger.info("Fetching Raydar job listings from %s", url)
+        try:
+            resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            logger.warning("Failed to fetch Raydar jobs from %s: %s", url, exc)
+            return []
+
+        jobs = data.get("jobs", [])
+        now = datetime.now(timezone.utc)
+        listings: list[JobListing] = []
+
+        for j in jobs:
+            country = (j.get("country") or "").strip().lower()
+            if self.countries and country and country not in self.countries:
+                continue
+
+            pub = j.get("published_on") or j.get("created_at")
+            if not pub:
+                continue
+            try:
+                dt = datetime.fromisoformat(pub).replace(tzinfo=timezone.utc)
+                age_days = (now - dt).total_seconds() / 86400.0
+            except ValueError:
+                continue
+            if age_days > self.max_age_days:
+                continue
+
+            title = (j.get("title") or "").strip()
+            if not title:
+                continue
+
+            # Title ineligibility check (drops PhDs, Skill Level 0, Senior, Non-tech)
+            bad_title = check_title_ineligibility(title)
+            if bad_title:
+                continue
+
+            # Must match AI/ML, Data Science, or SWE relevant roles
+            if not _SR_RELEVANT_TITLE_RE.search(title):
+                continue
+
+            sc = (j.get("shortcode") or "").strip()
+            if not sc:
+                continue
+
+            city = (j.get("city") or "").strip()
+            state = (j.get("state") or "").strip()
+            loc_parts = [p for p in (city, state) if p]
+            loc = ", ".join(loc_parts) or "United States"
+            if j.get("telecommuting"):
+                loc += " (Remote)"
+
+            age_label = f"{int(age_days)}d" if age_days >= 1.0 else f"{max(1, int(age_days * 24))}h"
+            apply_url = f"https://apply.workable.com/{self.account}/j/{sc}/apply/"
+            details_url = f"https://apply.workable.com/api/v2/accounts/{self.account}/jobs/{sc}"
+
+            listings.append(
+                JobListing(
+                    company="Raydar",
+                    title=title,
+                    location=loc,
+                    apply_url=apply_url,
+                    age_label=age_label,
+                    source="raydar",
+                    details_url=details_url,
+                )
+            )
+            if len(listings) >= self.max_listings:
+                break
+
+        logger.info("Raydar: %d fresh filtered listings matched", len(listings))
+        return listings
+
+
 # ── Multi-Source Orchestrator ──────────────────────────────────────────────────
 
 def _load_sources_config(config_path: Path = _JOB_SEARCH_CONFIG_PATH) -> dict:
@@ -831,6 +1002,7 @@ def fetch_all_sources(
     sa_cfg = src_cfg.get("speedyapply_ai", {"enabled": True, "max_age_days": 14})
     zapply_cfg = src_cfg.get("zapply_ds", {"enabled": True, "max_age_days": 14, "exclude_internships": True})
     sr_cfg = src_cfg.get("smartrecruiters", {"enabled": True, "max_age_days": 14, "exclude_internships": True})
+    raydar_cfg = src_cfg.get("raydar", {"enabled": True, "max_age_days": 14, "exclude_internships": True})
     buckets: list[list[JobListing]] = []
 
     if simplify_cfg.get("enabled", True):
@@ -866,6 +1038,16 @@ def fetch_all_sources(
                 max_listings=min(max_listings_per_source, 40),
                 max_age_days=int(sr_cfg.get("max_age_days", 14)),
                 exclude_internships=bool(sr_cfg.get("exclude_internships", True)),
+            ).fetch()
+        )
+
+    if raydar_cfg.get("enabled", True):
+        buckets.append(
+            RaydarAdapter(
+                account=str(raydar_cfg.get("account", "raydar")),
+                max_listings=min(max_listings_per_source, 40),
+                max_age_days=int(raydar_cfg.get("max_age_days", 14)),
+                exclude_internships=bool(raydar_cfg.get("exclude_internships", True)),
             ).fetch()
         )
 

@@ -1,17 +1,20 @@
 """
 src/filtering/eligibility.py
 -----------------------------
-Regex-based hard-reject / pass / review filter for visa and eligibility gating.
+Regex-based hard-reject / pass / review filter for visa, title, and clearance eligibility gating.
 
 Evaluation order (short-circuit logic):
-  1. PASS immediately  — if any fast-pass signal is present (F-1/OPT/CPT explicit mention)
-  2. HARD_REJECT       — if any hard-reject pattern matches
-  3. PASS              — if any soft-pass signal matches (new grad, target grad years, degree)
-  4. REVIEW            — everything else (Gemini makes the final call)
-
-Design note: PASS signals take priority over HARD_REJECT because a JD that says
-"We support F-1 OPT/CPT but do not sponsor H-1B" is still potentially viable.
+  0. TITLE CHECK         — Ineligible if role targets PhD, is sub-level (Skill Level 0 / IT support),
+                            senior/executive, or non-technical/business.
+  1. ABSOLUTE CLEARANCE  — HARD_REJECT immediately if security clearance or US citizenship is required.
+                            (Cannot be bypassed by F-1/OPT fast-pass under any circumstances).
+  2. FAST_PASS           — PASS if explicit F-1 / OPT / CPT or visa sponsorship is stated.
+  3. CONDITIONAL REJECT  — HARD_REJECT if no sponsorship, mandatory PhD in body, or 3+ years required.
+  4. SOFT_PASS           — PASS if new grad / entry-level / target graduation year / degree mentioned.
+  5. REVIEW              — Ambiguous; Gemini makes the final classification call.
 """
+
+from __future__ import annotations
 
 import logging
 import re
@@ -73,54 +76,132 @@ def is_company_excluded(company: str = "", apply_url: str = "") -> str | None:
             return excluded
     return None
 
+
 # ---------------------------------------------------------------------------
 # Pattern sets — all compiled once at import time, case-insensitive
 # ---------------------------------------------------------------------------
 
-# Step 0: Non-technical / Business titles blacklist
-NON_TECH_TITLES: list[str] = [
-    "advisor",
-    "analyst",
-    "rotational",
-    "development program",
-    "early career program",
-    "consultant",
-    "business intelligence",
-    "bi ",
-    "marketing",
-    "sales",
-    "operations",
-    "clerk",
-    "admin",
-]
+# Step 0: Job Title Ineligibility Filters
+_PHD_TITLE_RE = re.compile(
+    r"\b(?:ph\.?d\.?|doctorate|doctoral|post[\s\-]?doc)\b",
+    re.IGNORECASE,
+)
+
+_SUBLEVEL_OR_LOW_SKILL_RE = re.compile(
+    r"\b(?:(?:skill\s*)?level\s*0\b|\b0\s*or\s*1\b|\bswe\s*0\b|\bengineer\s*0\b)\b|"
+    r"\b(?:help\s*desk|desktop\s*support|it\s+support|tech(?:nical)?\s+support|data\s+entry|data\s+collector)\b",
+    re.IGNORECASE,
+)
+
+_SENIOR_TITLE_RE = re.compile(
+    r"\b(?:senior|sr\.?|staff|principal|lead|manager|director|vp|chief|architect|fellow)\b",
+    re.IGNORECASE,
+)
+
+_NON_TECH_TITLE_RE = re.compile(
+    r"\b(?:advisor|rotational|development\s+program|early\s+career\s+program|"
+    r"consult\w*|business\s+intelligence|bi\b|marketing|sales|"
+    r"operations|clerk|admin|recruiter|talent|human\s+resources|hr\b)\b|"
+    r"\b(?!quantitative\b|quant\b)\w+\s+analyst\b",
+    re.IGNORECASE,
+)
+
+_INTERN_TITLE_RE = re.compile(
+    r"\b(?:interns?|internships?|co-?ops?)\b",
+    re.IGNORECASE,
+)
 
 
-def _check_non_tech_title(title: str = "", job_text: str = "") -> str | None:
-    """Check if the job title matches any blacklisted non-technical role patterns."""
-    target = title.strip().lower()
+def check_title_ineligibility(title: str = "", job_text: str = "") -> dict | None:
+    """
+    Check if the job title matches any blacklisted or ineligible role patterns:
+      1. PhD / Doctoral roles (candidate has BS/MS, no PhD)
+      2. Sub-entry / Skill Level 0 / IT support / data entry roles
+      3. Senior / leadership roles (excluding Member of Technical Staff)
+      4. Non-technical / business / analyst roles
+    """
+    target = title.strip()
     if not target and job_text:
         first_line = job_text.strip().splitlines()[0]
         if " at " in first_line:
-            target = first_line.split(" at ")[0].strip().lower()
+            target = first_line.split(" at ")[0].strip()
         else:
-            target = first_line.strip().lower()
+            target = first_line.strip()
 
-    if target:
-        for pattern in NON_TECH_TITLES:
-            if pattern in target:
-                return pattern
+    if not target:
+        return None
+
+    # 1. PhD / Doctoral roles
+    m_phd = _PHD_TITLE_RE.search(target)
+    if m_phd:
+        return {
+            "status": "HARD_REJECT",
+            "matched_pattern": m_phd.group(0),
+            "label": "phd_only_role",
+            "reason": f"Role targets PhD/Doctoral candidates ({m_phd.group(0)!r})",
+        }
+
+    # 2. Sub-entry / Level 0 / IT Support
+    m_sub = _SUBLEVEL_OR_LOW_SKILL_RE.search(target)
+    if m_sub:
+        return {
+            "status": "HARD_REJECT",
+            "matched_pattern": m_sub.group(0),
+            "label": "sublevel_or_low_skill_role",
+            "reason": f"Sub-entry/Skill Level 0 or IT support role ({m_sub.group(0)!r})",
+        }
+
+    # 3. Seniority (allow "member of technical staff")
+    target_clean = re.sub(r"\bmember of technical staff\b", "mts", target, flags=re.IGNORECASE)
+    m_senior = _SENIOR_TITLE_RE.search(target_clean)
+    if m_senior:
+        return {
+            "status": "HARD_REJECT",
+            "matched_pattern": m_senior.group(0),
+            "label": "seniority",
+            "reason": f"Senior or executive role ({m_senior.group(0)!r})",
+        }
+
+    # 4. Non-technical / Business
+    m_nontech = _NON_TECH_TITLE_RE.search(target)
+    if m_nontech:
+        return {
+            "status": "INELIGIBLE",
+            "matched_pattern": m_nontech.group(0),
+            "label": "non_technical_role",
+            "reason": f"Non-technical or business role ({m_nontech.group(0)!r})",
+        }
+
     return None
 
 
-# Step 1: Fast-pass signals — explicit sponsorship / visa support language
+# Step 1: Absolute Hard-Reject Gate (Clearance & Citizenship)
+# CRITICAL: These MUST evaluate unconditionally. Fast-pass (F-1 / OPT) CANNOT override
+# classified security clearance or US citizenship requirements.
+_ABSOLUTE_HARD_REJECT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
+    (re.compile(r"security clearance", re.I), "clearance", "Security clearance required"),
+    (re.compile(r"(secret|top secret|ts/sci|ts\\|sci) clearance", re.I), "clearance", "Classified clearance required"),
+    (re.compile(r"\bpolygraph\b", re.I), "clearance", "Polygraph required"),
+    (re.compile(r"\bdod clearance\b", re.I), "clearance", "DoD clearance required"),
+    (re.compile(r"\bpublic trust\b", re.I), "clearance", "Public trust clearance required"),
+    (re.compile(r"u\.s\.?\s*citizen", re.I), "us_citizenship", "US Citizenship required"),
+    (re.compile(r"united states citizen", re.I), "us_citizenship", "United States Citizenship required"),
+    (re.compile(r"only\s+(?:us|u\.s\.)\s+citizens?", re.I), "us_citizenship", "Only US citizens eligible"),
+    (re.compile(r"must\s+be\s+(?:a\s+)?(?:us|u\.s\.)\s+citizen", re.I), "us_citizenship", "Must be a US citizen"),
+    (re.compile(r"due to federal contract requirements", re.I), "us_citizenship", "Federal contract citizenship/clearance mandated"),
+    (re.compile(r"green card (required|holders? only)", re.I), "green_card_only", "Green Card holders only"),
+    (re.compile(r"must have (permanent|unrestricted) work auth", re.I), "green_card_only", "Unrestricted/Permanent work auth required"),
+]
+
+# Step 2: Fast-pass signals — explicit visa sponsorship / F-1 / OPT support language
 _FAST_PASS_PATTERNS: list[re.Pattern] = [
     re.compile(p, re.IGNORECASE)
     for p in [
-        r"\bf-1\b",
+        r"\bf-?1\b",
         r"\bf1-opt\b",
-        r"\bopt\b",          # Optional Practical Training
-        r"\bcpt\b",          # Curricular Practical Training
-        # Positive-only: require "available/offered/provided" NOT preceded by "no/not/cannot"
+        # Explicit word-boundary excluding opt-in, opt-out, option, adoption
+        r"\bopt\b(?!\s*[-/]?\s*(?:in|out|ion))\b",
+        r"\bcpt\b",
         r"(?<!no )(?<!not )(?<!cannot )visa sponsorship (is )?(available|offered|provided)",
         r"we (do |will )?sponsor",
         r"sponsorship (is )?provided",
@@ -143,43 +224,34 @@ def _find_positive_fast_pass(job_text: str) -> re.Pattern | None:
     for pattern in _FAST_PASS_PATTERNS:
         for m in pattern.finditer(job_text):
             ctx = job_text[max(0, m.start() - 280) : m.start()]
-            # Restrict context check to the same paragraph if a blank line separates sections
             if "\n\n" in ctx:
                 ctx = ctx.rsplit("\n\n", 1)[-1]
             if not _NEGATED_CONTEXT_RE.search(ctx):
                 return pattern
     return None
 
-# Step 2: Hard-reject signals — disqualifying language
-_HARD_REJECT_PATTERNS: list[tuple[re.Pattern, str]] = [
-    (re.compile(p, re.IGNORECASE), label)
-    for p, label in [
-        (r"u\.s\.?\s*citizen",                          "us_citizenship"),
-        (r"united states citizen",                       "us_citizenship"),
-        (r"no (?:visa|immigration) sponsorship",                  "no_sponsorship"),
-        (r"will not sponsor",                                     "no_sponsorship"),
-        (r"(?:not|cannot|unable to)\s+(?:be\s+)?considering.{0,80}(?:visa|immigration)\s+sponsorship", "no_sponsorship"),
-        (r"(?:unable|not able) to sponsor",                       "no_sponsorship"),
-        (r"do(?:es)? not (offer|provide)( (?:visa|immigration))? sponsorship",   "no_sponsorship"),
-        (r"cannot (provide|offer)( (?:visa|immigration))? sponsorship",           "no_sponsorship"),
-        (r"sponsorship (is )?not (available|offered)",            "no_sponsorship"),
-        (r"without (?:visa |immigration )?sponsorship",           "no_sponsorship"),
-        (r"green card (required|holders? only)",         "green_card_only"),
-        (r"must have (permanent|unrestricted) work auth","green_card_only"),
-        (r"security clearance",                          "clearance"),
-        (r"(secret|top secret|ts/sci) clearance",        "clearance"),
-        (r"\bstaff (engineer|scientist|researcher)\b",   "seniority"),
-        (r"\bprincipal (engineer|scientist|researcher)\b","seniority"),
-        (r"\b(engineering|product|program) manager\b",  "management"),
-        (r"\bph\.?d\.?\s+required\b",                   "phd_required"),
-        (r"\bphd\s+required\b",                          "phd_required"),
-        (r"3\+?\s+years",                                "experience_years"),
-        (r"three or more years",                         "experience_years"),
-        (r"minimum (of )?3 years",                       "experience_years"),
-    ]
+
+# Step 3: Conditional Hard-Reject Signals — disqualifying visa sponsorship, PhD mandatory, or experience
+_CONDITIONAL_HARD_REJECT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
+    (re.compile(r"no (?:visa|immigration) sponsorship", re.I), "no_sponsorship", "No visa sponsorship"),
+    (re.compile(r"will not sponsor", re.I), "no_sponsorship", "Will not sponsor"),
+    (re.compile(r"(?:not|cannot|unable to)\s+(?:be\s+)?considering.{0,80}(?:visa|immigration)\s+sponsorship", re.I), "no_sponsorship", "Not considering sponsorship"),
+    (re.compile(r"(?:unable|not able) to sponsor", re.I), "no_sponsorship", "Unable to sponsor"),
+    (re.compile(r"do(?:es)? not (offer|provide)( (?:visa|immigration))? sponsorship", re.I), "no_sponsorship", "Does not offer sponsorship"),
+    (re.compile(r"cannot (provide|offer)( (?:visa|immigration))? sponsorship", re.I), "no_sponsorship", "Cannot provide sponsorship"),
+    (re.compile(r"sponsorship (is )?not (available|offered)", re.I), "no_sponsorship", "Sponsorship not available"),
+    (re.compile(r"without (?:visa |immigration )?sponsorship", re.I), "no_sponsorship", "Requires work auth without sponsorship"),
+    (re.compile(r"\bph\.?d\.?\s+(?:is\s+)?required\b", re.I), "phd_required", "PhD degree required"),
+    (re.compile(r"\bphd\s+(?:is\s+)?required\b", re.I), "phd_required", "PhD degree required"),
+    (re.compile(r"\bmust\s+(?:have|hold)\s+(?:a\s+)?ph\.?d\b", re.I), "phd_required", "Must have a PhD"),
+    (re.compile(r"\bdoctorate\s+(?:degree\s+)?(?:is\s+)?required\b", re.I), "phd_required", "Doctorate required"),
+    (re.compile(r"\bph\.?d\.?\s+degree\s+(?:is\s+)?required\b", re.I), "phd_required", "PhD degree required"),
+    (re.compile(r"3\+?\s+years", re.I), "experience_years", "3+ years experience required"),
+    (re.compile(r"three or more years", re.I), "experience_years", "3+ years experience required"),
+    (re.compile(r"minimum (of )?3 years", re.I), "experience_years", "Minimum 3 years experience required"),
 ]
 
-# Step 3: Soft-pass signals — new grad / target graduation years / degree level
+# Step 4: Soft-pass signals — new grad / target graduation years / degree level
 _SOFT_PASS_PATTERNS: list[re.Pattern] = [
     re.compile(p, re.IGNORECASE)
     for p in [
@@ -206,97 +278,70 @@ def evaluate_eligibility(job_text: str, title: str = "") -> str:
     """
     Evaluate a raw job description for eligibility.
 
-    Parameters
-    ----------
-    job_text : str
-        The full text of the job description (title + body).
-    title : str, optional
-        The job title string. If omitted, extracted from the first line of job_text.
-
-    Returns
-    -------
-    str
-        One of:
-          'PASS'        — Eligible; proceed to AI tailoring.
-          'HARD_REJECT' — Ineligible; discard immediately (no API call).
-          'INELIGIBLE'  — Ineligible due to non-technical/business role.
-          'REVIEW'      — Ambiguous; Gemini makes the final classification.
+    Returns 'PASS', 'HARD_REJECT', 'INELIGIBLE', or 'REVIEW'.
     """
-    # ── Step 0: Non-technical / Business title hard-reject ──────────────────
-    bad_title = _check_non_tech_title(title, job_text)
-    if bad_title:
-        logger.info(
-            "INELIGIBLE [Non-technical/Business role] matched %r in title %r",
-            bad_title, title,
-        )
-        return "INELIGIBLE"
-
-    if not job_text or not job_text.strip():
-        if not title:
-            logger.warning("evaluate_eligibility called with empty job_text; returning REVIEW")
-        return "REVIEW"
-
-    # ── Step 1: Fast-pass override ──────────────────────────────────────────
-    fast_pattern = _find_positive_fast_pass(job_text)
-    if fast_pattern:
-        logger.debug("Fast-pass matched: %s", fast_pattern.pattern)
-        return "PASS"
-
-    # ── Step 2: Hard-reject gate ────────────────────────────────────────────
-    for pattern, label in _HARD_REJECT_PATTERNS:
-        m = pattern.search(job_text)
-        if m:
-            logger.info(
-                "HARD_REJECT [%s] matched pattern %r at pos %d",
-                label, pattern.pattern, m.start(),
-            )
-            return "HARD_REJECT"
-
-    # ── Step 3: Soft-pass signals ───────────────────────────────────────────
-    for pattern in _SOFT_PASS_PATTERNS:
-        if pattern.search(job_text):
-            logger.debug("Soft-pass matched: %s", pattern.pattern)
-            return "PASS"
-
-    # ── Step 4: Ambiguous — send to Gemini ─────────────────────────────────
-    return "REVIEW"
+    res = explain_eligibility(job_text, title=title)
+    return res["status"]
 
 
 def explain_eligibility(job_text: str, title: str = "") -> dict:
     """
-    Like evaluate_eligibility, but returns a detailed dict for audit logging.
-
-    Returns
-    -------
-    dict with keys:
-        status          : 'PASS' | 'HARD_REJECT' | 'INELIGIBLE' | 'REVIEW'
-        matched_pattern : str | None   (the regex that triggered the decision)
-        label           : str | None   (human-readable category)
-        reason          : str | None   (human-readable explanation if rejected)
+    Detailed eligibility evaluation with pattern matching and rejection reasoning.
     """
-    # ── Step 0: Non-technical / Business title hard-reject ──────────────────
-    bad_title = _check_non_tech_title(title, job_text)
-    if bad_title:
-        return {
-            "status": "INELIGIBLE",
-            "matched_pattern": bad_title,
-            "label": "non_technical_role",
-            "reason": "Non-technical/Business role",
-        }
+    # ── Step 0: Title-Level Ineligibility ──────────────────────────────────
+    title_check = check_title_ineligibility(title, job_text)
+    if title_check:
+        logger.info(
+            "%s [%s] matched pattern %r in title %r: %s",
+            title_check["status"], title_check["label"], title_check["matched_pattern"], title, title_check["reason"],
+        )
+        return title_check
 
     if not job_text or not job_text.strip():
         return {"status": "REVIEW", "matched_pattern": None, "label": "empty_input"}
 
+    # ── Step 1: Absolute Clearance & Citizenship Gate ─────────────────────
+    # Cannot be bypassed by F-1/OPT fast-pass under any circumstances
+    for pattern, label, reason in _ABSOLUTE_HARD_REJECT_PATTERNS:
+        m = pattern.search(job_text)
+        if m:
+            logger.info(
+                "HARD_REJECT [%s] matched pattern %r at pos %d: %s",
+                label, pattern.pattern, m.start(), reason,
+            )
+            return {
+                "status": "HARD_REJECT",
+                "matched_pattern": pattern.pattern,
+                "label": label,
+                "reason": reason,
+            }
+
+    # ── Step 2: Fast-Pass Override (Visa/OPT) ──────────────────────────────
     fast_pattern = _find_positive_fast_pass(job_text)
     if fast_pattern:
+        logger.debug("Fast-pass matched: %s", fast_pattern.pattern)
         return {"status": "PASS", "matched_pattern": fast_pattern.pattern, "label": "fast_pass"}
 
-    for pattern, label in _HARD_REJECT_PATTERNS:
-        if pattern.search(job_text):
-            return {"status": "HARD_REJECT", "matched_pattern": pattern.pattern, "label": label}
+    # ── Step 3: Conditional Hard-Reject Gate (Visa/PhD/Experience) ──────────
+    for pattern, label, reason in _CONDITIONAL_HARD_REJECT_PATTERNS:
+        m = pattern.search(job_text)
+        if m:
+            logger.info(
+                "HARD_REJECT [%s] matched pattern %r at pos %d: %s",
+                label, pattern.pattern, m.start(), reason,
+            )
+            return {
+                "status": "HARD_REJECT",
+                "matched_pattern": pattern.pattern,
+                "label": label,
+                "reason": reason,
+            }
 
+    # ── Step 4: Soft-Pass Signals ───────────────────────────────────────────
     for pattern in _SOFT_PASS_PATTERNS:
         if pattern.search(job_text):
+            logger.debug("Soft-pass matched: %s", pattern.pattern)
             return {"status": "PASS", "matched_pattern": pattern.pattern, "label": "soft_pass"}
 
+    # ── Step 5: Ambiguous — send to Gemini ─────────────────────────────────
     return {"status": "REVIEW", "matched_pattern": None, "label": "no_signal"}

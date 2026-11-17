@@ -58,6 +58,7 @@ from src.scraper.adapters import (
     extract_page_text,
     fetch_all_sources,
     fetch_smartrecruiters_text,
+    fetch_workable_text,
     resolve_apply_url,
 )
 from src.scraper.state_manager import StateManager
@@ -281,7 +282,12 @@ def _process_listing(
         page_text += prefetched_text
     elif not dry_run:
         resolved_url = resolve_apply_url(apply_url)
-        extracted = fetch_smartrecruiters_text(details_url) if details_url else ""
+        extracted = ""
+        if details_url:
+            if "smartrecruiters.com" in details_url:
+                extracted = fetch_smartrecruiters_text(details_url)
+            elif "workable.com" in details_url:
+                extracted = fetch_workable_text(details_url)
         if not extracted:
             extracted = extract_page_text(resolved_url)
         if extracted:
