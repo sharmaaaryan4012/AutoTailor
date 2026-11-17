@@ -119,7 +119,12 @@ def _export_pdf(pdf_path: Path, track: str) -> None:
         logger.warning("Could not export PDF to %s: %s", _RESUME_EXPORT_DIR, exc)
 
 
-def run_pipeline(dry_run: bool = False, limit: int = 75, max_delivered: int = 7) -> None:
+def run_pipeline(
+    dry_run: bool = False,
+    limit: int = 75,
+    max_delivered: int = 7,
+    source: str = "all",
+) -> None:
     """
     Execute one full pipeline run.
 
@@ -132,9 +137,11 @@ def run_pipeline(dry_run: bool = False, limit: int = 75, max_delivered: int = 7)
         Maximum number of new/unseen listings to examine in this run.
     max_delivered : int
         Target number of tailored resumes to deliver to Discord before concluding the run.
+    source : str
+        Target a specific platform ('all', 'simplify', 'speedyapply_ai', 'zapply_ds', 'smartrecruiters', 'raydar').
     """
     logger.info("=" * 60)
-    logger.info("Pipeline starting  [dry_run=%s, limit=%d, max_delivered=%d]", dry_run, limit, max_delivered)
+    logger.info("Pipeline starting  [dry_run=%s, limit=%d, max_delivered=%d, source=%s]", dry_run, limit, max_delivered, source)
     logger.info("=" * 60)
 
     # ── Phase 0: Initialise state ──────────────────────────────────────────────
@@ -146,7 +153,7 @@ def run_pipeline(dry_run: bool = False, limit: int = 75, max_delivered: int = 7)
     # Fetch candidate pools across configured feeds so `limit` applies to
     # genuinely unexamined, non-excluded listings rather than already-seen entries.
     fetch_pool_size = max(limit * 5, 80)
-    raw_listings = fetch_all_sources(max_listings_per_source=fetch_pool_size)
+    raw_listings = fetch_all_sources(max_listings_per_source=fetch_pool_size, selected_source=source)
     logger.info("Scraped %d deduplicated candidate listings across sources", len(raw_listings))
 
     # ── Run counters ───────────────────────────────────────────────────────────
@@ -455,6 +462,12 @@ def _parse_args() -> argparse.Namespace:
         metavar="N",
         help="Target number of tailored resumes to deliver before concluding the run (default: 7).",
     )
+    parser.add_argument(
+        "--source", "-s",
+        choices=["all", "simplify", "speedyapply_ai", "zapply_ds", "smartrecruiters", "raydar"],
+        default="all",
+        help="Target a specific job board feed (default: all).",
+    )
     return parser.parse_args()
 
 
@@ -462,4 +475,9 @@ if __name__ == "__main__":
     args = _parse_args()
     # Ensure data directory exists for the log file
     Path("data").mkdir(exist_ok=True)
-    run_pipeline(dry_run=args.dry_run, limit=args.limit, max_delivered=args.max_delivered)
+    run_pipeline(
+        dry_run=args.dry_run,
+        limit=args.limit,
+        max_delivered=args.max_delivered,
+        source=args.source,
+    )

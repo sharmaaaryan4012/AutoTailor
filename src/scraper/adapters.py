@@ -990,13 +990,25 @@ def _load_sources_config(config_path: Path = _JOB_SEARCH_CONFIG_PATH) -> dict:
 def fetch_all_sources(
     max_listings_per_source: int = 60,
     config_path: Path = _JOB_SEARCH_CONFIG_PATH,
+    selected_source: str | None = None,
 ) -> list[JobListing]:
     """
     Fetch listings from all enabled sources in config/job_search.yaml, interleave
     them in round-robin order so every source gets fair coverage within run limits,
     and deduplicate across sources by normalized URL and (company, title).
+
+    If selected_source is specified (e.g. 'raydar', 'simplify', 'zapply_ds'),
+    only that platform is scraped for the run.
     """
     src_cfg = _load_sources_config(config_path)
+
+    target_src = (selected_source or "").strip().lower()
+    if target_src and target_src != "all":
+        # Ensure target source dict exists and disable others
+        for k in ("simplify", "speedyapply_ai", "zapply_ds", "smartrecruiters", "raydar"):
+            if k not in src_cfg:
+                src_cfg[k] = {"enabled": False}
+            src_cfg[k]["enabled"] = (k == target_src)
 
     simplify_cfg = src_cfg.get("simplify", {"enabled": True, "max_age_days": 14})
     sa_cfg = src_cfg.get("speedyapply_ai", {"enabled": True, "max_age_days": 14})
