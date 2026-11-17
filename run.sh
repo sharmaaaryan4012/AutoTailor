@@ -8,4 +8,4 @@ if [ ! -f "$PYTHON_BIN" ]; then
     PYTHON_BIN="python3"
 fi
 
-"$PYTHON_BIN" -m src.main --limit 25 >> "$SCRIPT_DIR/data/cron.log" 2>&1
+"$PYTHON_BIN" -m src.main --limit 75 --max-delivered 7 >> "$SCRIPT_DIR/data/cron.log" 2>&1

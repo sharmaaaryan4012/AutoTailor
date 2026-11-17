@@ -119,7 +119,7 @@ def _export_pdf(pdf_path: Path, track: str) -> None:
         logger.warning("Could not export PDF to %s: %s", _RESUME_EXPORT_DIR, exc)
 
 
-def run_pipeline(dry_run: bool = False, limit: int = 50) -> None:
+def run_pipeline(dry_run: bool = False, limit: int = 75, max_delivered: int = 7) -> None:
     """
     Execute one full pipeline run.
 
@@ -129,10 +129,12 @@ def run_pipeline(dry_run: bool = False, limit: int = 50) -> None:
         If True, skip Gemini API calls, PDF rendering, and Discord delivery.
         Useful for verifying scraping + eligibility without spending quota.
     limit : int
-        Maximum number of listings to process in this run.
+        Maximum number of new/unseen listings to examine in this run.
+    max_delivered : int
+        Target number of tailored resumes to deliver to Discord before concluding the run.
     """
     logger.info("=" * 60)
-    logger.info("Pipeline starting  [dry_run=%s, limit=%d]", dry_run, limit)
+    logger.info("Pipeline starting  [dry_run=%s, limit=%d, max_delivered=%d]", dry_run, limit, max_delivered)
     logger.info("=" * 60)
 
     # ── Phase 0: Initialise state ──────────────────────────────────────────────
@@ -143,7 +145,7 @@ def run_pipeline(dry_run: bool = False, limit: int = 50) -> None:
     # ── Phase 1: Scrape ────────────────────────────────────────────────────────
     # Fetch candidate pools across configured feeds so `limit` applies to
     # genuinely unexamined, non-excluded listings rather than already-seen entries.
-    fetch_pool_size = max(limit * 5, 50)
+    fetch_pool_size = max(limit * 5, 80)
     raw_listings = fetch_all_sources(max_listings_per_source=fetch_pool_size)
     logger.info("Scraped %d deduplicated candidate listings across sources", len(raw_listings))
 
@@ -164,7 +166,12 @@ def run_pipeline(dry_run: bool = False, limit: int = 50) -> None:
     processed = 0
 
     for listing in raw_listings:
+        if stats["delivered"] >= max_delivered:
+            logger.info("Target delivered applications reached (%d/%d) — concluding run", stats["delivered"], max_delivered)
+            break
+
         if processed >= limit:
+            logger.info("Listing processing limit reached (%d/%d) — concluding run", processed, limit)
             break
 
         company   = listing.company
@@ -437,9 +444,16 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--limit",
         type=int,
-        default=50,
+        default=75,
         metavar="N",
-        help="Maximum number of listings to process per run (default: 50).",
+        help="Maximum number of listings to examine per run (default: 75).",
+    )
+    parser.add_argument(
+        "--max-delivered",
+        type=int,
+        default=7,
+        metavar="N",
+        help="Target number of tailored resumes to deliver before concluding the run (default: 7).",
     )
     return parser.parse_args()
 
@@ -448,4 +462,4 @@ if __name__ == "__main__":
     args = _parse_args()
     # Ensure data directory exists for the log file
     Path("data").mkdir(exist_ok=True)
-    run_pipeline(dry_run=args.dry_run, limit=args.limit)
+    run_pipeline(dry_run=args.dry_run, limit=args.limit, max_delivered=args.max_delivered)

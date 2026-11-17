@@ -193,7 +193,8 @@ sources:
 
 # --- Global Run Limits ---
 limits:
-  max_total_listings_per_run: 50
+  max_total_listings_per_run: 75
+  max_delivered_per_run: 7
   max_gemini_calls_per_run: 40  # leave headroom below free tier daily limit
 
 # --- Hard-Reject Patterns (Regex, case-insensitive) ---
