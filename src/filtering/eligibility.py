@@ -78,6 +78,123 @@ def is_company_excluded(company: str = "", apply_url: str = "") -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# US-Only Geographic Filter
+# ---------------------------------------------------------------------------
+
+_US_STATE_CODES: set[str] = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI",
+    "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN",
+    "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH",
+    "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA",
+    "WV", "WI", "WY",
+}
+
+_US_STATE_NAMES_RE = re.compile(
+    r"\b(?:alabama|alaska|arizona|arkansas|california|colorado|connecticut|"
+    r"delaware|district of columbia|florida|georgia|hawaii|idaho|illinois|"
+    r"indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|"
+    r"michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|"
+    r"new hampshire|new jersey|new mexico|new york|north carolina|north dakota|"
+    r"ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|"
+    r"south dakota|tennessee|texas|utah|vermont|virginia|washington|"
+    r"west virginia|wisconsin|wyoming)\b",
+    re.IGNORECASE,
+)
+
+_US_EXPLICIT_RE = re.compile(
+    r"\b(?:usa|u\.s\.a\.|u\.s\.|united states|us\s+remote|remote\s+(?:in\s+)?(?:the\s+)?us\b|"
+    r"remote\s*\(us\)|sf|nyc|san francisco|new york|seattle|austin|boston|chicago|"
+    r"san jose|sunnyvale|cupertino|menlo park|mountain view|palo alto|redmond|"
+    r"los angeles|san diego|bellevue|atlanta|denver|pittsburgh|houston|dallas|"
+    r"silicon valley|bay area)\b",
+    re.IGNORECASE,
+)
+
+_NON_US_COUNTRY_OR_REGION_RE = re.compile(
+    r"\b(?:uk|u\.k\.|united kingdom|england|scotland|wales|northern ireland|great britain|"
+    r"canada|ontario|quebec|british columbia|alberta|manitoba|nova scotia|saskatchewan|"
+    r"germany|deutschland|france|spain|italy|netherlands|holland|belgium|switzerland|"
+    r"austria|sweden|norway|denmark|finland|poland|portugal|ireland|czech|romania|"
+    r"hungary|greece|luxembourg|europe|emea|apac|latam|"
+    r"india|singapore|australia|new zealand|japan|china|hong kong|taiwan|"
+    r"south korea|korea|israel|brazil|mexico|argentina|colombia|chile|uae|dubai|"
+    r"south africa|philippines|vietnam|malaysia|indonesia)\b",
+    re.IGNORECASE,
+)
+
+_NON_US_PROVINCE_RE = re.compile(r",\s*(?:ON|BC|QC|AB|MB|SK|NS|NB|NL|PE)\b")
+
+# Unambiguously international cities (checked BEFORE 2-letter US state codes to prevent
+# ISO country code collisions like "Berlin, DE", "Toronto, CA", "Bangalore, IN", "Tel Aviv, IL")
+_UNAMBIGUOUS_NON_US_CITIES_RE = re.compile(
+    r"\b(?:london|edinburgh|glasgow|belfast|leeds|sheffield|liverpool|cardiff|"
+    r"brighton|newcastle|nottingham|hatfield|reigate|telford|harwell|didcot|swinton|"
+    r"toronto|vancouver|montreal|ottawa|waterloo|calgary|edmonton|winnipeg|"
+    r"mississauga|markham|etobicoke|st\.\s*catharines|"
+    r"berlin|munich|frankfurt|hamburg|paris|amsterdam|zurich|geneva|stockholm|"
+    r"madrid|barcelona|milan|rome|warsaw|krakow|prague|vienna|brussels|copenhagen|oslo|helsinki|lisbon|"
+    r"bengaluru|bangalore|hyderabad|pune|mumbai|delhi|gurgaon|gurugram|noida|chennai|kolkata|"
+    r"sydney|melbourne|brisbane|perth|auckland|tokyo|osaka|beijing|shanghai|shenzhen|"
+    r"seoul|taipei|tel aviv|herzliya|bogota|medellin|buenos aires|jakarta)\b",
+    re.IGNORECASE,
+)
+
+# Ambiguous cities that exist in both UK/Ireland and the US (only flagged non-US if NOT paired with a US state)
+_AMBIGUOUS_NON_US_CITIES_RE = re.compile(
+    r"\b(?:manchester|cambridge|dublin|birmingham|oxford|bristol|reading|york)\b",
+    re.IGNORECASE,
+)
+
+_NON_US_URL_RE = re.compile(
+    r"(?:\.co\.uk/|\.ca/|job-boards\.eu\.greenhouse\.io|uk\.applytojob\.com|"
+    r"/(?:uk|london|manchester|toronto|vancouver|montreal|canada|en-gb|en-ca|uk-[a-z]+)/|"
+    r"Toronto-ON-CAN|UK-Harwell)",
+    re.IGNORECASE,
+)
+
+
+def _classify_location_segment(seg: str) -> str:
+    """Classify a single location string segment as 'US', 'NON_US', or 'UNKNOWN'."""
+    s = seg.strip()
+    if not s:
+        return "UNKNOWN"
+    if (
+        _NON_US_COUNTRY_OR_REGION_RE.search(s)
+        or _NON_US_PROVINCE_RE.search(s)
+        or _UNAMBIGUOUS_NON_US_CITIES_RE.search(s)
+    ):
+        return "NON_US"
+    if _US_EXPLICIT_RE.search(s) or _US_STATE_NAMES_RE.search(s):
+        return "US"
+    for tok in re.findall(r"\b[A-Z]{2}\b", s):
+        if tok in _US_STATE_CODES:
+            return "US"
+    if _AMBIGUOUS_NON_US_CITIES_RE.search(s):
+        return "NON_US"
+    return "UNKNOWN"
+
+
+def is_us_location(location: str = "", apply_url: str = "") -> bool:
+    """
+    Return True if the job listing is located in the United States (or US-eligible Remote).
+    Multi-location strings (e.g., 'Remote in USA / Remote in Canada') return True if AT LEAST
+    ONE segment is in the US. Purely international roles (UK, Canada, EU, India, etc.) return False.
+    """
+    segments = [p.strip() for p in re.split(r"[/;|\n]+", location or "") if p.strip()]
+    if not segments:
+        return not bool(_NON_US_URL_RE.search(apply_url or ""))
+
+    results = [_classify_location_segment(seg) for seg in segments]
+    if "US" in results:
+        return True
+    if "NON_US" in results:
+        return False
+    if apply_url and _NON_US_URL_RE.search(apply_url):
+        return False
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Pattern sets — all compiled once at import time, case-insensitive
 # ---------------------------------------------------------------------------
 
@@ -94,7 +211,7 @@ _SUBLEVEL_OR_LOW_SKILL_RE = re.compile(
 )
 
 _SENIOR_TITLE_RE = re.compile(
-    r"\b(?:senior|sr\.?|staff|principal|lead|manager|director|vp|chief|architect|fellow)\b",
+    r"\b(?:senior|sr\.?|staff|principal|lead|head\s+of|manager|director|vp|chief|architect|fellow)\b",
     re.IGNORECASE,
 )
 

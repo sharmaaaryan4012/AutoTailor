@@ -49,7 +49,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import requests
 import yaml
 
-from src.filtering.eligibility import check_title_ineligibility
+from src.filtering.eligibility import check_title_ineligibility, is_us_location
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +269,11 @@ class SimplifyNewGradAdapter:
                 logger.debug("No apply URL found for %s @ %s — skipping", title, company)
                 continue
 
+            # Enforce US-only locations
+            if not is_us_location(location, apply_url):
+                logger.debug("Skipping non-US listing (%s): %s @ %s", location, title, company)
+                continue
+
             # ── Cell 4: Age ────────────────────────────────────────────────────
             age_label = _extract_text(cells[4]) if len(cells) > 4 else ""
             if self._is_too_old(age_label):
@@ -288,15 +293,12 @@ class SimplifyNewGradAdapter:
     def _is_too_old(self, age_label: str) -> bool:
         """
         Return True if the age label indicates the listing is older than
-        max_age_days. The README uses labels like "2d", "5d", "30d+".
+        max_age_days. Handles days ('5d'), weeks ('2w'), months ('1mo', '2mo'), etc.
         """
-        if not age_label:
+        age_days = _parse_age_days(age_label)
+        if age_days is None:
             return False
-        m = re.match(r"(\d+)d", age_label)
-        if not m:
-            return False
-        days = int(m.group(1))
-        return days > self.max_age_days
+        return age_days > self.max_age_days
 
 
 # ── Shared age, URL, and text helpers ──────────────────────────────────────────
@@ -576,6 +578,10 @@ class SpeedyApplyNewGradAdapter:
                 continue
             apply_url = html_lib.unescape(apply_url)
 
+            if not is_us_location(location, apply_url):
+                logger.debug("Skipping non-US listing (%s): %s @ %s", location, title, company)
+                continue
+
             age_label = html_lib.unescape(_extract_text(cols[5]))
             age_days = _parse_age_days(age_label)
             if age_days is not None and age_days > self.max_age_days:
@@ -702,6 +708,9 @@ class ZapplyNewGradAdapter:
                 if not apply_url or not company or not title:
                     continue
                 apply_url = html_lib.unescape(apply_url)
+                if not is_us_location(location, apply_url):
+                    logger.debug("Skipping non-US listing (%s): %s @ %s", location, title, company)
+                    continue
                 details_url = ""
                 m_sr = re.search(r"/l/d/sr-([A-Za-z0-9_]+)-(\d+)", apply_url)
                 if m_sr:

@@ -66,6 +66,7 @@ from src.filtering.eligibility import (
     evaluate_eligibility,
     explain_eligibility,
     is_company_excluded,
+    is_us_location,
 )
 from src.ai_tailor.gemini_client import generate_patch, ResumePatch
 from src.ai_tailor.patch_applier import apply_patch
@@ -194,6 +195,13 @@ def run_pipeline(
         if excluded_company:
             logger.info("  → SKIP (excluded company: %s)", excluded_company)
             stats["skipped_company"] += 1
+            continue
+
+        # ── Phase 1.6: US-Only Location Gate ───────────────────────────────────
+        if not is_us_location(location, apply_url):
+            logger.info("  → SKIP (non-US location: %s)", location)
+            state.mark_rejected(apply_url, title, company, "NON_US_LOCATION", location)
+            stats["hard_rejected"] += 1
             continue
 
         # ── Phase 2: Dedup ─────────────────────────────────────────────────────

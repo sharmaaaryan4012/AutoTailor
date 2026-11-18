@@ -25,7 +25,7 @@
 
 <h2>Experience</h2>
 <div class="row bold"><span>HERE Technologies</span><span>Chicago, IL</span></div>
-<div class="row"><span>Data Science Intern</span><span>Jan 2026 &ndash; May 2026</span></div>
+<div class="row"><span>Machine Learning Intern</span><span>Jan 2026 &ndash; May 2026</span></div>
 <ul>
   <li><!-- ID: HERE_01 --> Developed a Two-Tower neural network comprising three multilayer perceptrons (MLPs) to learn road-sign and supporting-structure representations, improving spatial association accuracy from 82% with XGBoost to 98%</li>
   <li><!-- ID: HERE_02 --> Engineered 28 geometric, spatial, and relational features and addressed a ~1:10 positive-to-negative class imbalance, supporting automated map updates with 1,500+ weekly fieldwork hours avoided across Europe</li>
