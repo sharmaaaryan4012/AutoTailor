@@ -215,6 +215,19 @@ _SENIOR_TITLE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_EXPERIENCED_OR_LEVEL2_TITLE_RE = re.compile(
+    r"\b(?:level\s*[2-9]|l[2-9]|ic[3-9])\b|"
+    r"\b(?:swe|sde|engineer|developer|scientist|specialist)\s*(?:[2-9]|ii|iii|iv|v)\b|"
+    r"\b(?:ii|iii|iv|v)\b|"
+    r"\b(?:mid[\s\-]?level|intermediate|experienced|specialist)\b",
+    re.IGNORECASE,
+)
+
+_PURE_RESEARCH_TITLE_RE = re.compile(
+    r"\b(?:research\s+scientist|applied\s+scientist|researcher|research\s+fellow|post[\s\-]?doc\w*|quantum\s+research)\b",
+    re.IGNORECASE,
+)
+
 _NON_TECH_TITLE_RE = re.compile(
     r"\b(?:advisor|rotational|development\s+program|early\s+career\s+program|"
     r"consult\w*|business\s+intelligence|bi\b|marketing|sales|"
@@ -235,7 +248,9 @@ def check_title_ineligibility(title: str = "", job_text: str = "") -> dict | Non
       1. PhD / Doctoral roles (candidate has BS/MS, no PhD)
       2. Sub-entry / Skill Level 0 / IT support / data entry roles
       3. Senior / leadership roles (excluding Member of Technical Staff)
-      4. Non-technical / business / analyst roles
+      4. Experienced / Level 2+ / Specialist roles
+      5. Pure research / academic / theoretical researcher roles
+      6. Non-technical / business / analyst roles
     """
     target = title.strip()
     if not target and job_text:
@@ -279,7 +294,27 @@ def check_title_ineligibility(title: str = "", job_text: str = "") -> dict | Non
             "reason": f"Senior or executive role ({m_senior.group(0)!r})",
         }
 
-    # 4. Non-technical / Business
+    # 4. Experienced / Level 2+ / Specialist
+    m_exp = _EXPERIENCED_OR_LEVEL2_TITLE_RE.search(target)
+    if m_exp:
+        return {
+            "status": "HARD_REJECT",
+            "matched_pattern": m_exp.group(0),
+            "label": "experienced_level_role",
+            "reason": f"Experienced/Level 2+/Specialist role ({m_exp.group(0)!r})",
+        }
+
+    # 5. Pure research / academic / theoretical researcher
+    m_res = _PURE_RESEARCH_TITLE_RE.search(target)
+    if m_res:
+        return {
+            "status": "HARD_REJECT",
+            "matched_pattern": m_res.group(0),
+            "label": "pure_research_role",
+            "reason": f"Pure research or doctoral scientist role ({m_res.group(0)!r})",
+        }
+
+    # 6. Non-technical / Business
     m_nontech = _NON_TECH_TITLE_RE.search(target)
     if m_nontech:
         return {
@@ -363,26 +398,31 @@ _CONDITIONAL_HARD_REJECT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"\bmust\s+(?:have|hold)\s+(?:a\s+)?ph\.?d\b", re.I), "phd_required", "Must have a PhD"),
     (re.compile(r"\bdoctorate\s+(?:degree\s+)?(?:is\s+)?required\b", re.I), "phd_required", "Doctorate required"),
     (re.compile(r"\bph\.?d\.?\s+degree\s+(?:is\s+)?required\b", re.I), "phd_required", "PhD degree required"),
-    (re.compile(r"3\+?\s+years", re.I), "experience_years", "3+ years experience required"),
-    (re.compile(r"three or more years", re.I), "experience_years", "3+ years experience required"),
-    (re.compile(r"minimum (of )?3 years", re.I), "experience_years", "Minimum 3 years experience required"),
+    (re.compile(r"\b(?:[3-9]|\d{2,})(?:&#43;|\+)?\s*years?\b", re.I), "experience_years", "3+ years experience required"),
+    (re.compile(r"\b(?:three|four|five|six|seven|eight|nine|ten)\s+(?:or\s+more\s+)?years?\b", re.I), "experience_years", "3+ years experience required"),
+    (re.compile(r"\b(?:[3-9]|\d{2,})\s*(?:to|-)\s*\d+\s+years?\b", re.I), "experience_years", "3+ years experience required"),
+    (re.compile(r"\bminimum\s+(?:of\s+)?(?:[2-9]|\d{2,})\s+years?\b", re.I), "experience_years", "Minimum 2+ years experience required"),
+    (re.compile(r"\bat\s+least\s+(?:[2-9]|\d{2,})\s+years?\b", re.I), "experience_years", "At least 2+ years experience required"),
+    (re.compile(r"\b[2-9](?:&#43;|\+)?\s*years?\s+(?:of\s+)?(?:full[\s\-]time|professional|industry|commercial)\s+experience\b", re.I), "experience_years", "Prior full-time/professional experience required"),
+    (re.compile(r"\bprior\s+(?:full[\s\-]time|industry|professional)\s+experience\s+(?:is\s+)?(?:required|mandatory)\b", re.I), "experience_years", "Prior professional experience required"),
+    (re.compile(r"\bprogressive\s+post-baccalaureate\s+.*?experience\b", re.I), "experience_years", "Post-baccalaureate experience required"),
 ]
 
-# Step 4: Soft-pass signals — new grad / target graduation years / degree level
+# Step 4: Soft-pass signals — genuine new grad / early career / class year signals
 _SOFT_PASS_PATTERNS: list[re.Pattern] = [
     re.compile(p, re.IGNORECASE)
     for p in [
-        r"\bnew\s*grad(uate)?\b",
-        r"\bentry.?level\b",
-        r"class of (2025|2026|2027)",
-        r"\b2026\b",
-        r"\b2027\b",
-        r"bachelor'?s (degree|of science|of arts)",
-        r"\bbs\b|\bb\.s\.\b",
-        r"master'?s (degree|of science|of arts)",
-        r"\bms\b|\bm\.s\.\b",
-        r"0.?2 years (of )?experience",
-        r"(recent|upcoming) graduate",
+        r"\bnew\s*grad(uate)?s?\b",
+        r"\bentry[\s\-]level\b",
+        r"\bearly\s*career\b",
+        r"\bclass\s+of\s+(?:2025|2026|2027)\b",
+        r"\b(?:graduating|graduated)\s+(?:in\s+)?(?:2025|2026|2027)\b",
+        r"\buniversity\s+grad(uate)?\b",
+        r"\b(?:recent|upcoming)\s+grad(uate)?\b",
+        r"\bcollege\s+(?:grad(uate)?|hire)\b",
+        r"\bcampus\s+recruiting\b",
+        r"\b0[\s\-–—]?[12]\s+years?(?:\s+of)?\s+experience\b",
+        r"\bno\s+(?:prior\s+)?experience\s+required\b",
     ]
 ]
 

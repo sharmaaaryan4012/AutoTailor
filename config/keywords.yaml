@@ -4,8 +4,10 @@
 # Priority Core Roles (Boosted)
 priority_roles:
   - "Machine Learning"
+  - "Machine Learning Engineer"
   - "AI Engineer"
-  - "Research Scientist"
+  - "Applied AI Engineer"
+  - "Software Engineer"
   - "Data Scientist"
 
 # Target Technical Domains
@@ -56,3 +58,8 @@ excluded_titles:
   - "operations"
   - "clerk"
   - "admin"
+  - "research scientist"
+  - "researcher"
+  - "specialist"
+  - "level 2"
+  - "level ii"

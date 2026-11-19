@@ -315,7 +315,10 @@ def _process_listing(
         if extracted:
             page_text += extracted
         else:
-            logger.warning("  Could not extract page text — proceeding on title+company only")
+            logger.warning("  Could not extract page text — skipping unverified listing")
+            state.mark_rejected(apply_url, title, company, reason="Could not extract JD text")
+            stats["hard_rejected"] += 1
+            return
     else:
         logger.info("  [DRY RUN] Skipping page text extraction")
         page_text += f"Location: {location}"

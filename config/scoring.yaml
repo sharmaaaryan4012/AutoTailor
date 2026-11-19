@@ -12,8 +12,10 @@ boosts:
     score: +25
     matches:
       - "Machine Learning"
+      - "Machine Learning Engineer"
       - "AI Engineer"
-      - "Research Scientist"
+      - "Applied AI Engineer"
+      - "Software Engineer"
       - "Data Scientist"
 
 # Penalties
@@ -25,6 +27,25 @@ penalties:
       - "Data and Analytics"
       - "Data & Analytics"
       - "Data Analytics"
+
+  pure_research_role:
+    score: -100
+    condition: "Pure academic, theoretical, or research scientist roles mismatched with applied engineering background"
+    matches:
+      - "Research Scientist"
+      - "Machine Learning Researcher"
+      - "Quantitative Researcher"
+      - "Research Fellow"
+      - "Postdoctoral"
+
+  experienced_or_specialist_role:
+    score: -100
+    condition: "Level 2/II, Specialist, or roles requiring prior industry experience"
+    matches:
+      - "Specialist"
+      - "Level 2"
+      - "Level II"
+      - "Experienced"
 
   non_technical_role:
     score: -100

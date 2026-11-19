@@ -27,6 +27,12 @@ tracks:
       - "Doctorate"
       - "Doctoral"
       - "Postdoc"
+      - "Research Scientist"
+      - "Researcher"
+      - "Specialist"
+      - "Level 2"
+      - "Level II"
+      - "L2"
       - "Level 0"
       - "Skill Level 0"
       - "0 or 1"
@@ -43,11 +49,11 @@ tracks:
   data_science:
     keywords:
       - "Data Scientist"
-      - "Research Scientist"
-      - "Applied Scientist"
-      - "Quantitative Analyst"
-      - "ML Scientist"
-      - "Quantitative Researcher"
+      - "Applied Data Scientist"
+      - "Machine Learning Scientist"
+      - "Associate Data Scientist"
+      - "Junior Data Scientist"
+      - "Data Engineer"
     exclude_keywords:
       - "Staff"
       - "Principal"
@@ -58,6 +64,13 @@ tracks:
       - "Doctorate"
       - "Doctoral"
       - "Postdoc"
+      - "Research Scientist"
+      - "Researcher"
+      - "Applied Scientist"
+      - "Specialist"
+      - "Level 2"
+      - "Level II"
+      - "L2"
       - "Level 0"
       - "Skill Level 0"
       - "0 or 1"
@@ -178,7 +191,7 @@ sources:
       - '"Machine Learning"'
       - '"AI Engineer"'
       - '"Data Scientist"'
-      - '"Research Scientist"'
+      - '"Machine Learning Engineer"'
       - '"New Grad"'
       - '"Graduate" Data'
 
@@ -229,11 +242,18 @@ hard_reject_patterns:
     - "dod clearance"
     - "polygraph required"
 
+  experience:
+    - "(?:[3-9]|\\d{2,})(?:&#43;|\\+)?\\s*years?"
+    - "(?:three|four|five|six|seven|eight|nine|ten)\\s+(?:or\\s+more\\s+)?years?"
+    - "(?:[3-9]|\\d{2,})\\s*(?:to|-)\\s*\\d+\\s+years?"
+    - "minimum\\s+(?:of\\s+)?(?:[2-9]|\\d{2,})\\s+years?"
+    - "at\\s+least\\s+(?:[2-9]|\\d{2,})\\s+years?"
+    - "[2-9](?:&#43;|\\+)?\\s*years?\\s+(?:of\\s+)?(?:full[\\s\\-]time|professional|industry|commercial)\\s+experience"
+    - "prior\\s+(?:full[\\s\\-]time|industry|professional)\\s+experience\\s+(?:is\\s+)?(?:required|mandatory)"
+
 # --- Soft-Flag Patterns (logged but not rejected) ---
 # Gemini makes the final call on soft-flagged listings.
 soft_flag_patterns:
-  - "3\\+? years? (of )?experience"
-  - "three or more years"
   - "immediate (start|availability)"
   - "currently available"
 

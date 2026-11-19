@@ -312,14 +312,17 @@ _SR_SENIOR_OR_NONTECH_RE = re.compile(
     r"architect|fellow|distinguished|advisor|analyst|consultant|supervisor|"
     r"coordinator|specialist|recruiter|sales|operator|mechanic|nursing|nurse|"
     r"therapist|technician|clinical|elisa|agronomic|molecular|toxicology|"
-    r"pharmacology|polymer|nucleic|iii|iv|v)\b|\b\d+\+\s*years?\b",
+    r"pharmacology|polymer|nucleic|ii|iii|iv|v)\b|"
+    r"\b(?:level\s*[2-9]|l[2-9]|ic[3-9])\b|"
+    r"\b(?:swe|sde|engineer|developer|scientist|specialist)\s*[2-9]\b|"
+    r"\b(?:research\s+scientist|applied\s+scientist|researcher|research\s+fellow|post[\s\-]?doc\w*)\b|"
+    r"\b\d+\+\s*years?\b",
     re.IGNORECASE,
 )
 
 _SR_RELEVANT_TITLE_RE = re.compile(
-    r"\b(?:machine learning|artificial intelligence|ai|data scien\w*|"
-    r"research scientist|applied scientist|ml|mlops|llm|deep learning|"
-    r"nlp|computer vision|research engineer)\b|"
+    r"\b(?:machine learning(?:\s+engineer)?|artificial intelligence|ai(?:\s+engineer)?|data scien\w*|"
+    r"ml(?:\s+engineer)?|mlops|llm|deep learning|nlp|computer vision)\b|"
     r"(?:software engineer|software developer).*?\b(?:new grad|graduate|entry|junior|university|i|1)\b",
     re.IGNORECASE,
 )
@@ -1152,15 +1155,30 @@ def extract_page_text(url: str, timeout_ms: int = 20_000) -> str:
             # Randomised polite delay before navigation (anti-bot courtesy)
             time.sleep(random.uniform(1.5, 3.5))
 
+            is_workday = "myworkdayjobs.com" in url.lower()
+            wait_strategy = "networkidle" if is_workday else "domcontentloaded"
+
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+                page.goto(url, wait_until=wait_strategy, timeout=timeout_ms)
                 # Give JS a moment to settle
                 page.wait_for_timeout(1500)
             except PWTimeout:
                 logger.warning("Navigation timed out for %s — returning partial text", url)
 
             text: str = page.evaluate("document.body.innerText") or ""
+
+            # If text is very short or shows loading state, give networkidle an opportunity to complete
+            if (len(text.strip()) < 300 or "loading" in text.lower()) and wait_strategy != "networkidle":
+                try:
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                    text = page.evaluate("document.body.innerText") or text
+                except Exception:
+                    pass
+
             browser.close()
+
+        import html
+        text = html.unescape(text)
 
         logger.debug("Extracted %d chars from %s", len(text), url)
         return text

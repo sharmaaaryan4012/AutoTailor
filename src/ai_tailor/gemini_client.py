@@ -116,9 +116,11 @@ Your job is to read the provided Job Description (JD) and perform ONLY three tas
    - Categorize the role as AI_ENGINEERING, DATA_SCIENCE, or IRRELEVANT.
    - Compute a fit_score (0-100) assessing suitability for a new graduate (BS Math & CS + Master in Management).
    - SCORING RULES:
-     * Strongly prioritize core technical roles: "Machine Learning", "AI Engineer", "Research Scientist", and "Data Scientist".
+     * Strongly prioritize core technical roles: "Machine Learning Engineer", "Applied AI Engineer", "Software Engineer", and "Data Scientist".
      * Apply a severe penalty (-50 points) for generic titles like "Data and Analytics", "Data Analytics", or business-oriented roles that do NOT have "Engineer" or "Scientist" attached.
      * Hard-classify non-technical/business roles (advisors, generic business analysts, operations, sales, rotational development programs) as IRRELEVANT with fit_score < 40.
+     * STRICT RESEARCH EXCLUSION: The candidate targets applied engineering, machine learning engineering, software engineering, and applied data science roles. Pure research roles (e.g., 'Research Scientist', 'Machine Learning Researcher', 'Quantitative Researcher', 'Research Fellow', 'Postdoctoral') or roles centered on academic research publications rather than applied software/ML delivery must be classified as IRRELEVANT with fit_score < 30.
+     * STRICT EXPERIENCE CONSTRAINT: The candidate is an upcoming new graduate (BS May 2026, Master in Management June 2027) with high-impact internships, NOT multi-year full-time industry tenure. If a role strictly requires past full-time professional experience (e.g. 2+ years, 3+ years, Level 2/II, Senior, Specialist) or states prior full-time industry experience is mandatory, classify as IRRELEVANT with fit_score < 30.
      * STRICT DEGREE CONSTRAINT: The candidate holds a BS in Mathematics & Computer Science (UIUC Grainger) and a Master in Management (Northwestern Kellogg). The candidate does NOT hold a PhD. If a role strictly requires or targets PhD/Doctoral candidates (e.g., 'PhD Early Career', 'PhD Research Scientist', 'Doctorate required') with no BS/MS alternative, classify as IRRELEVANT with fit_score < 30.
      * CANDIDATE CALIBER CONSTRAINT: The candidate is an elite technical graduate with production experience in deep learning, distributed simulations, and agentic AI. Reject sub-level or low-complexity engineering roles (e.g., 'Level 0', 'Skill Level 0', IT support, help desk, technician, manual QA, data collection) as IRRELEVANT with fit_score < 20.
 
