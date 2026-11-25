@@ -315,8 +315,7 @@ def _process_listing(
         if extracted:
             page_text += extracted
         else:
-            logger.warning("  Could not extract page text — skipping unverified listing")
-            state.mark_rejected(apply_url, title, company, reason="Could not extract JD text")
+            logger.warning("  Could not extract page text — skipping unverified listing (will retry next run)")
             stats["hard_rejected"] += 1
             return
     else:
@@ -406,12 +405,7 @@ def _process_listing(
 
     success = render_to_pdf(patched_md, str(pdf_path))
     if not success:
-        logger.warning("  → PDF_OVERFLOW or render error — not delivering")
-        state.mark_rejected(
-            apply_url, title, company,
-            reason="PDF_OVERFLOW",
-            matched_pattern=str(pdf_path.name),
-        )
+        logger.warning("  → PDF render failed or overflowed — not delivering (will retry next run)")
         stats["pdf_overflow"] += 1
         return
 
